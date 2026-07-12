@@ -42,6 +42,18 @@ class FinancialRequiredMixin(UserPassesTestMixin):
         return (self.request.user.is_superuser or 
                 self.request.user.groups.filter(name__in=['Fleet Manager', 'Financial Analyst']).exists())
 
+class DriverRequiredMixin(UserPassesTestMixin):
+    def test_func(self):
+        if not self.request.user.is_authenticated:
+            return False
+        return self.request.user.is_superuser or self.request.user.groups.filter(name='Driver').exists()
+
+class SafetyOfficerOnlyRequiredMixin(UserPassesTestMixin):
+    def test_func(self):
+        if not self.request.user.is_authenticated:
+            return False
+        return self.request.user.is_superuser or self.request.user.groups.filter(name='Safety Officer').exists()
+
 class DriverSelfOrStaffRequiredMixin(UserPassesTestMixin):
     """Allows Driver to view their own profile, staff to view any"""
     def test_func(self):
@@ -295,7 +307,7 @@ class DriverDetailView(LoginRequiredMixin, DriverSelfOrStaffRequiredMixin, Detai
         context['trips'] = driver.trips.all().order_by('-scheduled_date')
         return context
 
-class DriverCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateView):
+class DriverCreateView(LoginRequiredMixin, SafetyOfficerOnlyRequiredMixin, CreateView):
     model = Driver
     fields = ['name', 'license_number', 'license_category', 'license_expiry', 'contact_number', 'safety_score', 'status', 'user']
     template_name = 'core/driver_form.html'
@@ -315,7 +327,7 @@ class DriverCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateView
         )
         return response
 
-class DriverUpdateView(LoginRequiredMixin, FleetManagerRequiredMixin, UpdateView):
+class DriverUpdateView(LoginRequiredMixin, SafetyOfficerOnlyRequiredMixin, UpdateView):
     model = Driver
     fields = ['name', 'license_number', 'license_category', 'license_expiry', 'contact_number', 'safety_score', 'status', 'user']
     template_name = 'core/driver_form.html'
@@ -341,7 +353,7 @@ class DriverUpdateView(LoginRequiredMixin, FleetManagerRequiredMixin, UpdateView
             )
         return response
 
-class DriverDeleteView(LoginRequiredMixin, FleetManagerRequiredMixin, DeleteView):
+class DriverDeleteView(LoginRequiredMixin, SafetyOfficerOnlyRequiredMixin, DeleteView):
     model = Driver
     template_name = 'core/driver_confirm_delete.html'
     success_url = reverse_lazy('driver_list')
@@ -400,7 +412,7 @@ class TripDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
         )
         return context
 
-class TripCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateView):
+class TripCreateView(LoginRequiredMixin, DriverRequiredMixin, CreateView):
     model = Trip
     fields = ['source', 'destination', 'vehicle', 'driver', 'cargo_weight', 'planned_distance', 'revenue', 'scheduled_date']
     template_name = 'core/trip_form.html'
@@ -420,7 +432,7 @@ class TripCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateView):
         )
         return response
 
-class TripUpdateView(LoginRequiredMixin, FleetManagerRequiredMixin, UpdateView):
+class TripUpdateView(LoginRequiredMixin, DriverRequiredMixin, UpdateView):
     model = Trip
     fields = ['source', 'destination', 'vehicle', 'driver', 'cargo_weight', 'planned_distance', 'revenue', 'scheduled_date', 'status']
     template_name = 'core/trip_form.html'
@@ -428,7 +440,7 @@ class TripUpdateView(LoginRequiredMixin, FleetManagerRequiredMixin, UpdateView):
     def get_success_url(self):
         return reverse_lazy('trip_detail', kwargs={'pk': self.object.pk})
 
-class TripDeleteView(LoginRequiredMixin, FleetManagerRequiredMixin, DeleteView):
+class TripDeleteView(LoginRequiredMixin, DriverRequiredMixin, DeleteView):
     model = Trip
     template_name = 'core/trip_confirm_delete.html'
     success_url = reverse_lazy('trip_list')
@@ -440,8 +452,8 @@ def trip_dispatch_view(request, pk):
     try:
         trip = get_object_or_404(Trip, pk=pk)
         
-        if not (request.user.is_superuser or request.user.groups.filter(name='Fleet Manager').exists()):
-            raise PermissionDenied("Only Fleet Managers can dispatch trips.")
+        if not (request.user.is_superuser or request.user.groups.filter(name='Driver').exists()):
+            raise PermissionDenied("Only Drivers can dispatch trips.")
             
         with transaction.atomic():
             trip = Trip.objects.select_for_update().get(pk=pk)
@@ -490,11 +502,10 @@ def trip_complete_view(request, pk):
     try:
         trip = get_object_or_404(Trip, pk=pk)
         
-        is_manager = request.user.is_superuser or request.user.groups.filter(name='Fleet Manager').exists()
-        is_driver = hasattr(request.user, 'driver_profile') and request.user.driver_profile == trip.driver
+        is_driver = request.user.is_superuser or (request.user.groups.filter(name='Driver').exists() and hasattr(request.user, 'driver_profile') and request.user.driver_profile == trip.driver)
         
-        if not (is_manager or is_driver):
-            raise PermissionDenied("You do not have permission to complete this trip.")
+        if not is_driver:
+            raise PermissionDenied("Only the assigned Driver can complete this trip.")
             
         with transaction.atomic():
             trip = Trip.objects.select_for_update().get(pk=pk)
@@ -560,8 +571,8 @@ def trip_cancel_view(request, pk):
     try:
         trip = get_object_or_404(Trip, pk=pk)
         
-        if not (request.user.is_superuser or request.user.groups.filter(name='Fleet Manager').exists()):
-            raise PermissionDenied("Only Fleet Managers can cancel trips.")
+        if not (request.user.is_superuser or request.user.groups.filter(name='Driver').exists()):
+            raise PermissionDenied("Only Drivers can cancel trips.")
             
         with transaction.atomic():
             trip = Trip.objects.select_for_update().get(pk=pk)
@@ -612,7 +623,7 @@ class MaintenanceLogListView(LoginRequiredMixin, StaffOnlyRequiredMixin, ListVie
     template_name = 'core/maintenance_list.html'
     context_object_name = 'maintenance_logs'
 
-class MaintenanceLogCreateView(LoginRequiredMixin, SafetyOfficerRequiredMixin, CreateView):
+class MaintenanceLogCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateView):
     model = MaintenanceLog
     fields = ['vehicle', 'description', 'cost', 'start_date', 'end_date', 'status']
     template_name = 'core/maintenance_form.html'
@@ -631,7 +642,7 @@ class MaintenanceLogCreateView(LoginRequiredMixin, SafetyOfficerRequiredMixin, C
         )
         return response
 
-class MaintenanceLogUpdateView(LoginRequiredMixin, SafetyOfficerRequiredMixin, UpdateView):
+class MaintenanceLogUpdateView(LoginRequiredMixin, FleetManagerRequiredMixin, UpdateView):
     model = MaintenanceLog
     fields = ['vehicle', 'description', 'cost', 'start_date', 'end_date', 'status']
     template_name = 'core/maintenance_form.html'

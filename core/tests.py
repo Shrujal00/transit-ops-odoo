@@ -125,18 +125,19 @@ class ViewGuardsRBACTest(TestCase):
 
 class DispatchStateMachineTest(TestCase):
     def setUp(self):
-        self.fm_role = Role.objects.create(name="Fleet Manager", code="fleet_manager")
-        self.fm_group = Group.objects.create(name="Fleet Manager")
-        self.manager_user = User.objects.create_user(email="manager@test.com", password="password123", role=self.fm_role)
-        self.manager_user.groups.add(self.fm_group)
+        self.driver_role = Role.objects.create(name="Driver", code="driver")
+        self.driver_group = Group.objects.create(name="Driver")
+        self.driver_user = User.objects.create_user(email="driver@test.com", password="password123", role=self.driver_role)
+        self.driver_user.groups.add(self.driver_group)
         
         self.vehicle = Vehicle.objects.create(
             registration_number="TX-5544-M", make="Toyota", model="Hilux", year=2021, capacity_kg=1200, acquisition_cost=35000.00
         )
         self.driver = Driver.objects.create(
+            user=self.driver_user,
             name="Bob Driver", license_number="LIC-Bob", license_expiry=timezone.now().date() + datetime.timedelta(days=100)
         )
-        self.client.login(email="manager@test.com", password="password123")
+        self.client.login(email="driver@test.com", password="password123")
 
     def test_cargo_limit_validation(self):
         trip = Trip(
@@ -220,15 +221,16 @@ class DispatchStateMachineTest(TestCase):
 
 class ConcurrencyLockingTest(TransactionTestCase):
     def setUp(self):
-        self.fm_role = Role.objects.create(name="Fleet Manager", code="fleet_manager")
-        self.fm_group = Group.objects.create(name="Fleet Manager")
-        self.manager_user = User.objects.create_user(email="manager@test.com", password="password123", role=self.fm_role)
-        self.manager_user.groups.add(self.fm_group)
+        self.driver_role = Role.objects.create(name="Driver", code="driver")
+        self.driver_group = Group.objects.create(name="Driver")
+        self.driver_user = User.objects.create_user(email="driver@test.com", password="password123", role=self.driver_role)
+        self.driver_user.groups.add(self.driver_group)
         
         self.vehicle = Vehicle.objects.create(
             registration_number="TX-LOCK-1", make="Mack", model="Anthem", year=2021, capacity_kg=15000, acquisition_cost=150000.00
         )
         self.driver_1 = Driver.objects.create(
+            user=self.driver_user,
             name="Driver Alpha", license_number="DL-Alpha", license_expiry=timezone.now().date() + datetime.timedelta(days=365)
         )
         self.driver_2 = Driver.objects.create(
@@ -247,10 +249,10 @@ class ConcurrencyLockingTest(TransactionTestCase):
         
         # Log in two client sessions in the main thread to prevent SQLite lockups on django_session table
         client1 = self.client_class()
-        client1.login(email="manager@test.com", password="password123")
+        client1.login(email="driver@test.com", password="password123")
         
         client2 = self.client_class()
-        client2.login(email="manager@test.com", password="password123")
+        client2.login(email="driver@test.com", password="password123")
         
         def dispatch_action(client, trip_id):
             response = client.post(reverse('trip_dispatch', kwargs={'pk': trip_id}))

@@ -38,21 +38,21 @@ class Command(BaseCommand):
         group_permissions = {
             'fleet_manager': {
                 'vehicle': ['add', 'change', 'delete', 'view'],
-                'driver': ['add', 'change', 'delete', 'view'],
-                'trip': ['add', 'change', 'delete', 'view'],
-                'maintenancelog': ['view'],
+                'driver': ['view'],
+                'trip': ['view'],
+                'maintenancelog': ['add', 'change', 'delete', 'view'],
                 'fuellog': ['view'],
                 'expense': ['view'],
             },
             'driver': {
-                'trip': ['change', 'view'],
+                'trip': ['add', 'change', 'delete', 'view'],
                 'vehicle': ['view'],
                 'driver': ['view'],
             },
             'safety_officer': {
-                'maintenancelog': ['add', 'change', 'delete', 'view'],
+                'driver': ['add', 'change', 'delete', 'view'],
+                'maintenancelog': ['view'],
                 'vehicle': ['view'],
-                'driver': ['view'],
                 'trip': ['view'],
             },
             'financial_analyst': {
@@ -201,7 +201,7 @@ class Command(BaseCommand):
         ]
 
         for t in trips_data:
-            trip = Trip.objects.create(
+            trip = Trip(
                 source=t['src'],
                 destination=t['dest'],
                 vehicle=t['vehicle'],
@@ -215,6 +215,8 @@ class Command(BaseCommand):
                 end_odometer=t.get('end_odo'),
                 fuel_consumed=t.get('fuel')
             )
+            trip._bypass_date_validation = True
+            trip.save()
             if trip.status == 'Ongoing':
                 trip.vehicle.status = 'On Trip'
                 trip.vehicle.save(update_fields=['status'])
@@ -233,7 +235,7 @@ class Command(BaseCommand):
             {'v': vehicles[2], 'desc': 'Annual safety inspection and engine tuning', 'cost': 800.00, 'start': today - datetime.timedelta(days=30), 'end': today - datetime.timedelta(days=29), 'status': 'Completed'},
         ]
         for m in m_logs:
-            MaintenanceLog.objects.create(
+            log = MaintenanceLog(
                 vehicle=m['v'],
                 description=m['desc'],
                 cost=m['cost'],
@@ -241,6 +243,8 @@ class Command(BaseCommand):
                 end_date=m.get('end'),
                 status=m['status']
             )
+            log._bypass_date_validation = True
+            log.save()
 
         self.stdout.write('Creating sample Fuel Logs...')
         fuel_logs = [
@@ -251,12 +255,14 @@ class Command(BaseCommand):
             {'v': vehicles[0], 'liters': 40.00, 'cost': 60.00, 'date': today - datetime.timedelta(days=8)},
         ]
         for f in fuel_logs:
-            FuelLog.objects.create(
+            log = FuelLog(
                 vehicle=f['v'],
                 liters=f['liters'],
                 cost=f['cost'],
                 date=f['date']
             )
+            log._bypass_date_validation = True
+            log.save()
 
         self.stdout.write('Creating sample Expenses...')
         expenses = [
@@ -266,13 +272,15 @@ class Command(BaseCommand):
             {'v': vehicles[1], 'amount': 250.00, 'category': 'Permits', 'desc': 'Oversize load state permit fee', 'date': today - datetime.timedelta(days=5)},
         ]
         for e in expenses:
-            Expense.objects.create(
+            exp = Expense(
                 vehicle=e['v'],
                 amount=e['amount'],
                 category=e['category'],
                 description=e['desc'],
                 date=e['date']
             )
+            exp._bypass_date_validation = True
+            exp.save()
 
         self.stdout.write('Creating initial Audit Logs...')
         # Write generic audit log entries for vehicle status changes
