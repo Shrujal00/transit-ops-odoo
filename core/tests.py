@@ -5,7 +5,8 @@ from django.urls import reverse
 from django.contrib.auth.models import Group
 import datetime
 import threading
-from .models import Role, User, Vehicle, Driver, Trip, MaintenanceLog, AuditLog
+from decimal import Decimal
+from .models import Role, User, Vehicle, Driver, Trip, MaintenanceLog, FuelLog, Expense, AuditLog
 
 class VehicleModelTest(TestCase):
     def test_registration_number_uppercase_on_save(self):
@@ -67,15 +68,12 @@ class DriverModelTest(TestCase):
 
 class ViewGuardsRBACTest(TestCase):
     def setUp(self):
-        # Create roles
         self.fm_role = Role.objects.create(name="Fleet Manager", code="fleet_manager")
         self.driver_role = Role.objects.create(name="Driver", code="driver")
         
-        # Create Groups
         self.fm_group = Group.objects.create(name="Fleet Manager")
         self.driver_group = Group.objects.create(name="Driver")
         
-        # Create Users
         self.manager_user = User.objects.create_user(email="manager@test.com", password="password123", role=self.fm_role)
         self.manager_user.groups.add(self.fm_group)
         
@@ -85,7 +83,6 @@ class ViewGuardsRBACTest(TestCase):
         self.driver_user_2 = User.objects.create_user(email="driver2@test.com", password="password123", role=self.driver_role)
         self.driver_user_2.groups.add(self.driver_group)
 
-        # Create Vehicles & Drivers
         self.vehicle = Vehicle.objects.create(
             registration_number="TX-9988-V", make="Ford", model="Transit", year=2020, capacity_kg=3000, acquisition_cost=40000.00
         )
@@ -128,21 +125,17 @@ class ViewGuardsRBACTest(TestCase):
 
 class DispatchStateMachineTest(TestCase):
     def setUp(self):
-        # Setup roles, groups, manager user
         self.fm_role = Role.objects.create(name="Fleet Manager", code="fleet_manager")
         self.fm_group = Group.objects.create(name="Fleet Manager")
         self.manager_user = User.objects.create_user(email="manager@test.com", password="password123", role=self.fm_role)
         self.manager_user.groups.add(self.fm_group)
         
-        # Resources
         self.vehicle = Vehicle.objects.create(
             registration_number="TX-5544-M", make="Toyota", model="Hilux", year=2021, capacity_kg=1200, acquisition_cost=35000.00
         )
         self.driver = Driver.objects.create(
             name="Bob Driver", license_number="LIC-Bob", license_expiry=timezone.now().date() + datetime.timedelta(days=100)
         )
-        
-        # Test client login
         self.client.login(email="manager@test.com", password="password123")
 
     def test_cargo_limit_validation(self):
@@ -159,16 +152,14 @@ class DispatchStateMachineTest(TestCase):
         trip = Trip.objects.create(
             source="A", destination="B", vehicle=self.vehicle, driver=expired_driver, cargo_weight=1000, scheduled_date=timezone.now().date()
         )
-        # Attempt to dispatch
         response = self.client.post(reverse('trip_dispatch', kwargs={'pk': trip.pk}))
         trip.refresh_from_db()
-        self.assertEqual(trip.status, 'Draft') # remains Draft because driver license is expired
+        self.assertEqual(trip.status, 'Draft')
 
     def test_dispatch_state_transition(self):
         trip = Trip.objects.create(
             source="A", destination="B", vehicle=self.vehicle, driver=self.driver, cargo_weight=1000, scheduled_date=timezone.now().date()
         )
-        # Dispatch
         response = self.client.post(reverse('trip_dispatch', kwargs={'pk': trip.pk}))
         trip.refresh_from_db()
         self.vehicle.refresh_from_db()
@@ -178,7 +169,6 @@ class DispatchStateMachineTest(TestCase):
         self.assertEqual(self.vehicle.status, 'On Trip')
         self.assertEqual(self.driver.status, 'On Trip')
 
-        # Complete
         response = self.client.post(reverse('trip_complete', kwargs={'pk': trip.pk}))
         trip.refresh_from_db()
         self.vehicle.refresh_from_db()
@@ -190,14 +180,12 @@ class DispatchStateMachineTest(TestCase):
         self.assertIsNotNone(trip.end_time)
 
     def test_maintenance_flow_transitions(self):
-        # Create maintenance log
         log = MaintenanceLog.objects.create(
             vehicle=self.vehicle, description="Repair radiator", cost=150.00, start_date=timezone.now().date(), status="In Progress"
         )
         self.vehicle.refresh_from_db()
         self.assertEqual(self.vehicle.status, 'In Shop')
 
-        # Complete maintenance
         log.status = "Completed"
         log.save()
         self.vehicle.refresh_from_db()
@@ -206,7 +194,6 @@ class DispatchStateMachineTest(TestCase):
 
 class ConcurrencyLockingTest(TransactionTestCase):
     def setUp(self):
-        # Setup roles, groups, manager user
         self.fm_role = Role.objects.create(name="Fleet Manager", code="fleet_manager")
         self.fm_group = Group.objects.create(name="Fleet Manager")
         self.manager_user = User.objects.create_user(email="manager@test.com", password="password123", role=self.fm_role)
@@ -241,7 +228,6 @@ class ConcurrencyLockingTest(TransactionTestCase):
                 if "failed" in msg.message or "not available" in msg.message:
                     errors.append(msg.message)
 
-        # Spawn two threads trying to dispatch separate trips with the SAME vehicle simultaneously
         t1 = threading.Thread(target=dispatch_action, args=(self.trip_1.id,))
         t2 = threading.Thread(target=dispatch_action, args=(self.trip_2.id,))
 
@@ -253,7 +239,69 @@ class ConcurrencyLockingTest(TransactionTestCase):
 
         self.vehicle.refresh_from_db()
         self.assertEqual(self.vehicle.status, 'On Trip')
-        
-        # Assert that at least one error message was generated due to the double booking lock
         self.assertTrue(len(errors) >= 1)
         self.assertTrue(any("not available" in err for err in errors))
+
+
+class FinanceAnalyticsTest(TestCase):
+    def setUp(self):
+        self.fa_role = Role.objects.create(name="Financial Analyst", code="financial_analyst")
+        self.fa_group = Group.objects.create(name="Financial Analyst")
+        self.finance_user = User.objects.create_user(email="analyst@test.com", password="password123", role=self.fa_role)
+        self.finance_user.groups.add(self.fa_group)
+        
+        self.driver_role = Role.objects.create(name="Driver", code="driver")
+        self.driver_group = Group.objects.create(name="Driver")
+        self.driver_user = User.objects.create_user(email="driver@test.com", password="password123", role=self.driver_role)
+        self.driver_user.groups.add(self.driver_group)
+
+        self.vehicle = Vehicle.objects.create(
+            registration_number="TX-FIN-1", make="Ford", model="F-350", year=2021, capacity_kg=3500, acquisition_cost=40000.00
+        )
+        self.driver = Driver.objects.create(
+            user=self.driver_user, name="Finance Driver", license_number="DL-FIN", license_expiry=timezone.now().date() + datetime.timedelta(days=365)
+        )
+
+        # Revenue
+        self.trip = Trip.objects.create(
+            source="A", destination="B", vehicle=self.vehicle, driver=self.driver, cargo_weight=1000, revenue=1000.00, status="Completed", scheduled_date=timezone.now().date()
+        )
+        # Maintenance Cost
+        self.maint = MaintenanceLog.objects.create(
+            vehicle=self.vehicle, description="Radiator service", cost=200.00, start_date=timezone.now().date(), status="Completed"
+        )
+        # Fuel Cost
+        self.fuel = FuelLog.objects.create(
+            vehicle=self.vehicle, liters=50.00, cost=100.00, date=timezone.now().date()
+        )
+
+    def test_unauthorized_roles_cannot_access_finance_report(self):
+        # Driver login
+        self.client.login(email="driver@test.com", password="password123")
+        response = self.client.get(reverse('finance_report'))
+        self.assertEqual(response.status_code, 403)
+
+    def test_authorized_analyst_can_access_finance_report(self):
+        self.client.login(email="analyst@test.com", password="password123")
+        response = self.client.get(reverse('finance_report'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_roi_calculation_values_reconcile(self):
+        self.client.login(email="analyst@test.com", password="password123")
+        
+        # Call report view
+        response = self.client.get(reverse('finance_report'))
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify context values
+        self.assertEqual(float(response.context['fleet_revenue']), 1000.00)
+        self.assertEqual(float(response.context['fleet_maintenance']), 200.00)
+        self.assertEqual(float(response.context['fleet_fuel']), 100.00)
+        self.assertEqual(float(response.context['fleet_op_cost']), 300.00)
+        self.assertAlmostEqual(float(response.context['fleet_roi']), (1000.00 - 300.00) / 40000.00)
+
+        # Call JSON API endpoint
+        api_response = self.client.get(reverse('finance_api_data'))
+        self.assertEqual(api_response.status_code, 200)
+        data = api_response.json()
+        self.assertAlmostEqual(data['fleet_roi_percentage'], ((1000.00 - 300.00) / 40000.00) * 100.0)

@@ -39,4 +39,8 @@ urlpatterns = [
     path('maintenance/', views.MaintenanceLogListView.as_view(), name='maintenance_list'),
     path('maintenance/new/', views.MaintenanceLogCreateView.as_view(), name='maintenance_create'),
     path('maintenance/<int:pk>/edit/', views.MaintenanceLogUpdateView.as_view(), name='maintenance_update'),
+
+    # Finance & ROI Reports
+    path('finance/', views.FinanceReportView.as_view(), name='finance_report'),
+    path('api/finance/data/', views.finance_api_view, name='finance_api_data'),
 ]

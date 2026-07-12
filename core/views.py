@@ -1,13 +1,15 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView, TemplateView
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django.db import transaction
 from django.utils import timezone
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import JsonResponse
+from decimal import Decimal
 from .models import Vehicle, Driver, Trip, MaintenanceLog, FuelLog, Expense, AuditLog
 
 # Custom Mixins for RBAC View Guarding
@@ -31,6 +33,14 @@ class SafetyOfficerRequiredMixin(UserPassesTestMixin):
             return False
         return (self.request.user.is_superuser or 
                 self.request.user.groups.filter(name__in=['Fleet Manager', 'Safety Officer']).exists())
+
+class FinancialRequiredMixin(UserPassesTestMixin):
+    """Allows Fleet Manager and Financial Analyst"""
+    def test_func(self):
+        if not self.request.user.is_authenticated:
+            return False
+        return (self.request.user.is_superuser or 
+                self.request.user.groups.filter(name__in=['Fleet Manager', 'Financial Analyst']).exists())
 
 class DriverSelfOrStaffRequiredMixin(UserPassesTestMixin):
     """Allows Driver to view their own profile, staff to view any"""
@@ -380,7 +390,6 @@ def trip_dispatch_view(request, pk):
         
     try:
         with transaction.atomic():
-            # Apply row-level locks
             trip = Trip.objects.select_for_update().get(pk=pk)
             vehicle = Vehicle.objects.select_for_update().get(pk=trip.vehicle.pk)
             driver = Driver.objects.select_for_update().get(pk=trip.driver.pk)
@@ -389,18 +398,15 @@ def trip_dispatch_view(request, pk):
                 raise ValidationError("Only draft trips can be dispatched.")
                 
             trip.status = 'Ongoing'
-            # Trigger model clean checks (license validity, statuses, capacity)
             trip.full_clean()
             trip.save()
             
-            # Transition vehicle and driver
             vehicle.status = 'On Trip'
             vehicle.save(update_fields=['status'])
             
             driver.status = 'On Trip'
             driver.save(update_fields=['status'])
             
-            # Audit log
             from django.contrib.contenttypes.models import ContentType
             trip_ct = ContentType.objects.get_for_model(Trip)
             AuditLog.objects.create(
@@ -414,7 +420,6 @@ def trip_dispatch_view(request, pk):
             )
             messages.success(request, f"Trip {trip.id} dispatched successfully!")
     except ValidationError as e:
-        # Extract direct error message
         err_msg = e.message_dict if hasattr(e, 'message_dict') else str(e)
         messages.error(request, f"Dispatch failed: {err_msg}")
     except Exception as e:
@@ -445,14 +450,12 @@ def trip_complete_view(request, pk):
             trip.end_time = timezone.now()
             trip.save(update_fields=['status', 'end_time'])
             
-            # Revert states to Available
             vehicle.status = 'Available'
             vehicle.save(update_fields=['status'])
             
             driver.status = 'Available'
             driver.save(update_fields=['status'])
             
-            # Audit log
             from django.contrib.contenttypes.models import ContentType
             trip_ct = ContentType.objects.get_for_model(Trip)
             AuditLog.objects.create(
@@ -490,14 +493,12 @@ def trip_cancel_view(request, pk):
             trip.status = 'Cancelled'
             trip.save(update_fields=['status'])
             
-            # Revert states to Available
             vehicle.status = 'Available'
             vehicle.save(update_fields=['status'])
             
             driver.status = 'Available'
             driver.save(update_fields=['status'])
             
-            # Audit log
             from django.contrib.contenttypes.models import ContentType
             trip_ct = ContentType.objects.get_for_model(Trip)
             AuditLog.objects.create(
@@ -546,3 +547,148 @@ class MaintenanceLogUpdateView(LoginRequiredMixin, SafetyOfficerRequiredMixin, U
     fields = ['vehicle', 'description', 'cost', 'start_date', 'end_date', 'status']
     template_name = 'core/maintenance_form.html'
     success_url = reverse_lazy('maintenance_list')
+
+
+# Finance & Analytics Views
+def _get_finance_data(start_date_str=None, end_date_str=None):
+    """Helper function to calculate operational costs and ROI per vehicle and fleet-wide"""
+    start_date = None
+    end_date = None
+    
+    if start_date_str:
+        try:
+            start_date = timezone.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+    if end_date_str:
+        try:
+            end_date = timezone.datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+
+    vehicles_data = []
+    
+    # Fleet-wide aggregations
+    fleet_revenue = Decimal('0.00')
+    fleet_maintenance = Decimal('0.00')
+    fleet_fuel = Decimal('0.00')
+    fleet_acquisition = Decimal('0.00')
+    
+    vehicles = Vehicle.objects.all()
+    for vehicle in vehicles:
+        # Sums
+        fuel_qs = vehicle.fuel_logs.all()
+        maint_qs = vehicle.maintenance_logs.all()
+        trip_qs = vehicle.trips.filter(status='Completed')
+        
+        if start_date:
+            fuel_qs = fuel_qs.filter(date__gte=start_date)
+            maint_qs = maint_qs.filter(start_date__gte=start_date)
+            trip_qs = trip_qs.filter(scheduled_date__gte=start_date)
+        if end_date:
+            fuel_qs = fuel_qs.filter(date__lte=end_date)
+            maint_qs = maint_qs.filter(start_date__lte=end_date)
+            trip_qs = trip_qs.filter(scheduled_date__lte=end_date)
+            
+        fuel_cost = fuel_qs.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
+        maint_cost = maint_qs.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
+        revenue = trip_qs.aggregate(total=Sum('revenue'))['total'] or Decimal('0.00')
+        
+        fuel_cost = Decimal(str(fuel_cost))
+        maint_cost = Decimal(str(maint_cost))
+        revenue = Decimal(str(revenue))
+        acq_cost = Decimal(str(vehicle.acquisition_cost))
+        
+        op_cost = fuel_cost + maint_cost
+        
+        if acq_cost > 0:
+            roi = (revenue - op_cost) / acq_cost
+        else:
+            roi = Decimal('0.00')
+            
+        # Add to fleet-wide totals
+        fleet_revenue += revenue
+        fleet_maintenance += maint_cost
+        fleet_fuel += fuel_cost
+        fleet_acquisition += acq_cost
+        
+        vehicles_data.append({
+            'vehicle': vehicle,
+            'revenue': revenue,
+            'maintenance': maint_cost,
+            'fuel': fuel_cost,
+            'op_cost': op_cost,
+            'roi': roi,
+            'roi_percentage': roi * 100
+        })
+        
+    fleet_op_cost = fleet_maintenance + fleet_fuel
+    if fleet_acquisition > 0:
+        fleet_roi = (fleet_revenue - fleet_op_cost) / fleet_acquisition
+    else:
+        fleet_roi = Decimal('0.00')
+        
+    return {
+        'vehicles': vehicles_data,
+        'fleet_revenue': fleet_revenue,
+        'fleet_maintenance': fleet_maintenance,
+        'fleet_fuel': fleet_fuel,
+        'fleet_op_cost': fleet_op_cost,
+        'fleet_acquisition': fleet_acquisition,
+        'fleet_roi': fleet_roi,
+        'fleet_roi_percentage': fleet_roi * 100,
+        'start_date': start_date_str or '',
+        'end_date': end_date_str or ''
+    }
+
+class FinanceReportView(LoginRequiredMixin, FinancialRequiredMixin, TemplateView):
+    template_name = 'core/finance_report.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        start_date = self.request.GET.get('start_date')
+        end_date = self.request.GET.get('end_date')
+        finance_data = _get_finance_data(start_date, end_date)
+        context.update(finance_data)
+        return context
+
+@login_required
+def finance_api_view(request):
+    if not (request.user.is_superuser or request.user.groups.filter(name__in=['Fleet Manager', 'Financial Analyst']).exists()):
+        raise PermissionDenied("You do not have permission to access financial data APIs.")
+        
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    data = _get_finance_data(start_date, end_date)
+    
+    # Serialize data for JSON
+    serialized_vehicles = []
+    for item in data['vehicles']:
+        serialized_vehicles.append({
+            'id': item['vehicle'].id,
+            'registration_number': item['vehicle'].registration_number,
+            'make': item['vehicle'].make,
+            'model': item['vehicle'].model,
+            'acquisition_cost': float(item['vehicle'].acquisition_cost),
+            'revenue': float(item['revenue']),
+            'maintenance': float(item['maintenance']),
+            'fuel': float(item['fuel']),
+            'op_cost': float(item['op_cost']),
+            'roi': float(item['roi']),
+            'roi_percentage': float(item['roi_percentage'])
+        })
+        
+    response_data = {
+        'fleet_revenue': float(data['fleet_revenue']),
+        'fleet_maintenance': float(data['fleet_maintenance']),
+        'fleet_fuel': float(data['fleet_fuel']),
+        'fleet_op_cost': float(data['fleet_op_cost']),
+        'fleet_acquisition': float(data['fleet_acquisition']),
+        'fleet_roi': float(data['fleet_roi']),
+        'fleet_roi_percentage': float(data['fleet_roi_percentage']),
+        'vehicles': serialized_vehicles,
+        'start_date': data['start_date'],
+        'end_date': data['end_date']
+    }
+    
+    return JsonResponse(response_data)
