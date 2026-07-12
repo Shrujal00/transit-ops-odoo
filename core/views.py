@@ -965,10 +965,13 @@ def vehicle_quick_resolve_maintenance(request, pk):
         return redirect('vehicle_list')
         
     with transaction.atomic():
-        log = vehicle.maintenance_logs.filter(status='In Progress').first()
+        log = vehicle.maintenance_logs.exclude(status='Completed').first()
         if log:
+            today = timezone.now().date()
+            if log.start_date > today:
+                log.start_date = today
             log.status = 'Completed'
-            log.end_date = timezone.now().date()
+            log.end_date = today
             log._bypass_date_validation = True
             log.save()
             
