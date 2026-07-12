@@ -199,7 +199,7 @@ class VehicleDetailView(LoginRequiredMixin, StaffOnlyRequiredMixin, DetailView):
 
 class VehicleCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateView):
     model = Vehicle
-    fields = ['registration_number', 'make', 'model', 'type', 'year', 'capacity_kg', 'odometer', 'acquisition_cost', 'status']
+    fields = ['registration_number', 'make', 'model', 'type', 'region', 'year', 'capacity_kg', 'odometer', 'acquisition_cost', 'status']
     template_name = 'core/vehicle_form.html'
     success_url = reverse_lazy('vehicle_list')
 
@@ -219,7 +219,7 @@ class VehicleCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateVie
 
 class VehicleUpdateView(LoginRequiredMixin, FleetManagerRequiredMixin, UpdateView):
     model = Vehicle
-    fields = ['registration_number', 'make', 'model', 'type', 'year', 'capacity_kg', 'odometer', 'acquisition_cost', 'status']
+    fields = ['registration_number', 'make', 'model', 'type', 'region', 'year', 'capacity_kg', 'odometer', 'acquisition_cost', 'status']
     template_name = 'core/vehicle_form.html'
 
     def get_success_url(self):
