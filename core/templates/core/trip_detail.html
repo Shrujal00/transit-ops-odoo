@@ -119,7 +119,11 @@
         {% for log in audit_logs %}
             <div class="chatter-item">
                 <div class="chatter-meta">
-                    {{ log.user.get_full_name|default:log.user.email|default:"System" }}
+                    {% if log.user %}
+                        {{ log.user.get_full_name|default:log.user.email }}
+                    {% else %}
+                        System
+                    {% endif %}
                     <span class="date">{{ log.timestamp|date:"Y-m-d H:i" }}</span>
                 </div>
                 <div class="chatter-content">
