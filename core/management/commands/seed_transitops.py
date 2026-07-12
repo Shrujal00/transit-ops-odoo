@@ -125,16 +125,16 @@ class Command(BaseCommand):
 
         self.stdout.write('Creating Vehicles...')
         vehicles_data = [
-            {'reg': 'TX-1002-A', 'make': 'Ford', 'model': 'F-350', 'year': 2021, 'cap': 3500, 'cost': 45000.00, 'status': 'Available', 'type': 'Van', 'odometer': 15000},
-            {'reg': 'NY-5021-B', 'make': 'Mercedes-Benz', 'model': 'Sprinter', 'year': 2022, 'cap': 2500, 'cost': 55000.00, 'status': 'Available', 'type': 'Van', 'odometer': 8000},
-            {'reg': 'CA-9874-C', 'make': 'Volvo', 'model': 'FH16 Truck', 'year': 2019, 'cap': 15000, 'cost': 140000.00, 'status': 'Available', 'type': 'Truck', 'odometer': 120000},
-            {'reg': 'FL-4402-D', 'make': 'Scania', 'model': 'R450', 'year': 2020, 'cap': 18000, 'cost': 165000.00, 'status': 'Available', 'type': 'Truck', 'odometer': 95000},
-            {'reg': 'IL-8912-E', 'make': 'Toyota', 'model': 'Hilux', 'year': 2021, 'cap': 1200, 'cost': 35000.00, 'status': 'Available', 'type': 'Truck', 'odometer': 42000},
-            {'reg': 'TX-9901-F', 'make': 'Isuzu', 'model': 'NPR', 'year': 2018, 'cap': 4500, 'cost': 48000.00, 'status': 'In Shop', 'type': 'Truck', 'odometer': 60000},
-            {'reg': 'NV-2311-G', 'make': 'Freightliner', 'model': 'Cascadia', 'year': 2023, 'cap': 20000, 'cost': 180000.00, 'status': 'Available', 'type': 'Truck', 'odometer': 35000},
-            {'reg': 'AZ-7721-H', 'make': 'Mack', 'model': 'Anthem', 'year': 2021, 'cap': 19000, 'cost': 160000.00, 'status': 'Available', 'type': 'Truck', 'odometer': 55000},
-            {'reg': 'OR-5509-I', 'make': 'Chevrolet', 'model': 'Express', 'year': 2017, 'cap': 2200, 'cost': 28000.00, 'status': 'Retired', 'type': 'Van', 'odometer': 180000},
-            {'reg': 'WA-1088-J', 'make': 'Volvo', 'model': 'VNL 860', 'year': 2022, 'cap': 16000, 'cost': 155000.00, 'status': 'Available', 'type': 'Truck', 'odometer': 25000},
+            {'reg': 'TX-1002-A', 'make': 'Ford', 'model': 'F-350', 'year': 2021, 'cap': 3500, 'cost': 45000.00, 'status': 'Available', 'type': 'Van', 'region': 'North', 'odometer': 15000},
+            {'reg': 'NY-5021-B', 'make': 'Mercedes-Benz', 'model': 'Sprinter', 'year': 2022, 'cap': 2500, 'cost': 55000.00, 'status': 'Available', 'type': 'Van', 'region': 'South', 'odometer': 8000},
+            {'reg': 'CA-9874-C', 'make': 'Volvo', 'model': 'FH16 Truck', 'year': 2019, 'cap': 15000, 'cost': 140000.00, 'status': 'Available', 'type': 'Truck', 'region': 'East', 'odometer': 120000},
+            {'reg': 'FL-4402-D', 'make': 'Scania', 'model': 'R450', 'year': 2020, 'cap': 18000, 'cost': 165000.00, 'status': 'Available', 'type': 'Truck', 'region': 'West', 'odometer': 95000},
+            {'reg': 'IL-8912-E', 'make': 'Toyota', 'model': 'Hilux', 'year': 2021, 'cap': 1200, 'cost': 35000.00, 'status': 'Available', 'type': 'Truck', 'region': 'North', 'odometer': 42000},
+            {'reg': 'TX-9901-F', 'make': 'Isuzu', 'model': 'NPR', 'year': 2018, 'cap': 4500, 'cost': 48000.00, 'status': 'In Shop', 'type': 'Truck', 'region': 'South', 'odometer': 60000},
+            {'reg': 'NV-2311-G', 'make': 'Freightliner', 'model': 'Cascadia', 'year': 2023, 'cap': 20000, 'cost': 180000.00, 'status': 'Available', 'type': 'Truck', 'region': 'East', 'odometer': 35000},
+            {'reg': 'AZ-7721-H', 'make': 'Mack', 'model': 'Anthem', 'year': 2021, 'cap': 19000, 'cost': 160000.00, 'status': 'Available', 'type': 'Truck', 'region': 'West', 'odometer': 55000},
+            {'reg': 'OR-5509-I', 'make': 'Chevrolet', 'model': 'Express', 'year': 2017, 'cap': 2200, 'cost': 28000.00, 'status': 'Retired', 'type': 'Van', 'region': 'North', 'odometer': 180000},
+            {'reg': 'WA-1088-J', 'make': 'Volvo', 'model': 'VNL 860', 'year': 2022, 'cap': 16000, 'cost': 155000.00, 'status': 'Available', 'type': 'Truck', 'region': 'South', 'odometer': 25000},
         ]
         
         vehicles = []
@@ -144,6 +144,7 @@ class Command(BaseCommand):
                 make=v['make'],
                 model=v['model'],
                 type=v['type'],
+                region=v['region'],
                 year=v['year'],
                 capacity_kg=v['cap'],
                 odometer=v['odometer'],

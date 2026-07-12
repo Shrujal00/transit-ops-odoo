@@ -54,10 +54,17 @@ class Vehicle(models.Model):
         ('Sedan', 'Sedan'),
         ('Other', 'Other'),
     ]
+    REGION_CHOICES = [
+        ('North', 'North'),
+        ('South', 'South'),
+        ('East', 'East'),
+        ('West', 'West'),
+    ]
     registration_number = models.CharField(max_length=20, unique=True, db_index=True)
     make = models.CharField(max_length=50)
     model = models.CharField(max_length=50)
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='Truck')
+    region = models.CharField(max_length=20, choices=REGION_CHOICES, default='North')
     year = models.PositiveIntegerField()
     capacity_kg = models.PositiveIntegerField()
     odometer = models.PositiveIntegerField(default=0)
@@ -262,6 +269,12 @@ class FuelLog(models.Model):
             raise ValidationError({'liters': 'Liters must be greater than 0.'})
         if self.cost is not None and self.cost <= 0:
             raise ValidationError({'cost': 'Cost must be greater than 0.'})
+
+    @property
+    def price_per_liter(self):
+        if self.liters > 0:
+            return self.cost / self.liters
+        return 0.0
 
     def save(self, *args, **kwargs):
         self.full_clean()

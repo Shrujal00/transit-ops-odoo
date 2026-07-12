@@ -76,6 +76,38 @@ def dashboard_view(request):
         fleet_utilization = (on_trip_vehicles / total_vehicles) * 100
     else:
         fleet_utilization = 0.0
+        
+    # Cost breakdown for Chart.js
+    total_fuel_cost = FuelLog.objects.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
+    total_maint_cost = MaintenanceLog.objects.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
+    total_expense_cost = Expense.objects.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
+    
+    cost_breakdown = {
+        'Fuel': float(total_fuel_cost),
+        'Maintenance': float(total_maint_cost),
+        'Expenses': float(total_expense_cost)
+    }
+    
+    # Fuel efficiency per vehicle for Chart.js
+    efficiency_data = []
+    for vehicle in Vehicle.objects.filter(status__in=['Available', 'On Trip', 'In Shop']):
+        trip_qs = vehicle.trips.filter(status='Completed')
+        total_distance = trip_qs.aggregate(total=Sum('planned_distance'))['total'] or 0
+        total_fuel_consumed = trip_qs.aggregate(total=Sum('fuel_consumed'))['total'] or Decimal('0.00')
+        total_fuel_logged = vehicle.fuel_logs.aggregate(total=Sum('liters'))['total'] or Decimal('0.00')
+        
+        total_fuel_consumed = Decimal(str(total_fuel_consumed))
+        total_fuel_logged = Decimal(str(total_fuel_logged))
+        
+        eff_fuel = total_fuel_consumed if total_fuel_consumed > 0 else total_fuel_logged
+        if eff_fuel > 0:
+            eff = float(Decimal(str(total_distance)) / eff_fuel)
+        else:
+            eff = 0.0
+        efficiency_data.append({
+            'reg': vehicle.registration_number,
+            'efficiency': round(eff, 2)
+        })
     
     # Audit logs for chatter (staff only)
     is_staff = request.user.is_superuser or request.user.groups.filter(name__in=['Fleet Manager', 'Safety Officer', 'Financial Analyst']).exists()
@@ -97,6 +129,8 @@ def dashboard_view(request):
         'pending_trips': pending_trips,
         'drivers_on_duty': drivers_on_duty,
         'fleet_utilization': fleet_utilization,
+        'cost_breakdown': cost_breakdown,
+        'efficiency_data': efficiency_data,
         'recent_logs': recent_logs,
         'is_staff': is_staff,
     }
@@ -112,10 +146,16 @@ class VehicleListView(LoginRequiredMixin, StaffOnlyRequiredMixin, ListView):
     def get_queryset(self):
         queryset = super().get_queryset()
         status_filter = self.request.GET.get('status')
+        type_filter = self.request.GET.get('type')
+        region_filter = self.request.GET.get('region')
         search_query = self.request.GET.get('q')
         
         if status_filter:
             queryset = queryset.filter(status=status_filter)
+        if type_filter:
+            queryset = queryset.filter(type=type_filter)
+        if region_filter:
+            queryset = queryset.filter(region=region_filter)
         if search_query:
             queryset = queryset.filter(
                 Q(registration_number__icontains=search_query) |
@@ -127,7 +167,11 @@ class VehicleListView(LoginRequiredMixin, StaffOnlyRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['status_choices'] = Vehicle.STATUS_CHOICES
+        context['type_choices'] = Vehicle.TYPE_CHOICES
+        context['region_choices'] = Vehicle.REGION_CHOICES
         context['current_status'] = self.request.GET.get('status', '')
+        context['current_type'] = self.request.GET.get('type', '')
+        context['current_region'] = self.request.GET.get('region', '')
         context['search_query'] = self.request.GET.get('q', '')
         return context
 
