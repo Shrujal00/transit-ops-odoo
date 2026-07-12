@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block title %}Reports & Exports | TransitOps ERP{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{% url 'dashboard' %}">Dashboard</a>
+<span class="separator">/</span>
+<span>Reports</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Reports</h1>
+    <p style="color: var(--text-muted); margin-top: 4px;">Data-backed operational reports with CSV & PDF export</p>
+</div>
+
+<!-- Vehicle Performance Table Section -->
+<div class="detail-card" style="padding: 24px; margin-top: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0; font-size: 16px; font-weight: 600;">Vehicle Performance</h3>
+        <div style="display: flex; gap: 8px;">
+            <a href="{% url 'export_vehicles_csv' %}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px; display: flex; align-items: center; gap: 4px;">
+                <span>📥</span> CSV
+            </a>
+            <a href="{% url 'export_vehicles_pdf' %}" target="_blank" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px; display: flex; align-items: center; gap: 4px;">
+                <span>📄</span> PDF
+            </a>
+        </div>
+    </div>
+    
+    <div class="table-responsive">
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr>
+                    <th style="border-bottom: 2px solid var(--border-color); padding: 12px 8px; text-align: left;">REG</th>
+                    <th style="border-bottom: 2px solid var(--border-color); padding: 12px 8px; text-align: left;">MODEL</th>
+                    <th style="border-bottom: 2px solid var(--border-color); padding: 12px 8px; text-align: left;">TRIPS</th>
+                    <th style="border-bottom: 2px solid var(--border-color); padding: 12px 8px; text-align: left;">REVENUE</th>
+                    <th style="border-bottom: 2px solid var(--border-color); padding: 12px 8px; text-align: left;">COST</th>
+                    <th style="border-bottom: 2px solid var(--border-color); padding: 12px 8px; text-align: left;">PROFIT</th>
+                    <th style="border-bottom: 2px solid var(--border-color); padding: 12px 8px; text-align: left;">ROI</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in vehicles_report %}
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 12px 8px; font-weight: 700; color: var(--accent-color);">{{ item.registration_number }}</td>
+                        <td style="padding: 12px 8px; color: var(--text-color);">{{ item.model }}</td>
+                        <td style="padding: 12px 8px; color: var(--text-color);">{{ item.trips }}</td>
+                        <td style="padding: 12px 8px; color: var(--success-color); font-weight: 500;">₹ {{ item.revenue|floatformat:0 }}</td>
+                        <td style="padding: 12px 8px; color: var(--danger-color); font-weight: 500;">₹ {{ item.cost|floatformat:0 }}</td>
+                        <td style="padding: 12px 8px; color: {% if item.profit >= 0 %}var(--success-color){% else %}var(--danger-color){% endif %}; font-weight: 600;">₹ {{ item.profit|floatformat:0 }}</td>
+                        <td style="padding: 12px 8px; color: {% if item.roi >= 0 %}var(--success-color){% else %}var(--danger-color){% endif %}; font-weight: 700;">{{ item.roi|floatformat:2 }}%</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 20px; color: var(--text-muted);">No records found.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Driver Performance Table Section -->
+<div class="detail-card" style="padding: 24px; margin-top: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0; font-size: 16px; font-weight: 600;">Driver Performance</h3>
+        <div style="display: flex; gap: 8px;">
+            <a href="{% url 'export_drivers_csv' %}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px; display: flex; align-items: center; gap: 4px;">
+                <span>📥</span> CSV
+            </a>
+            <a href="{% url 'export_drivers_pdf' %}" target="_blank" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px; display: flex; align-items: center; gap: 4px;">
+                <span>📄</span> PDF
+            </a>
+        </div>
+    </div>
+    
+    <div class="table-responsive">
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr>
+                    <th style="border-bottom: 2px solid var(--border-color); padding: 12px 8px; text-align: left;">DRIVER NAME</th>
+                    <th style="border-bottom: 2px solid var(--border-color); padding: 12px 8px; text-align: left;">TOTAL TRIPS</th>
+                    <th style="border-bottom: 2px solid var(--border-color); padding: 12px 8px; text-align: left;">COMPLETED TRIPS</th>
+                    <th style="border-bottom: 2px solid var(--border-color); padding: 12px 8px; text-align: left;">SAFETY SCORE</th>
+                    <th style="border-bottom: 2px solid var(--border-color); padding: 12px 8px; text-align: left;">FUEL CONSUMED (L)</th>
+                    <th style="border-bottom: 2px solid var(--border-color); padding: 12px 8px; text-align: left;">TOTAL REVENUE</th>
+                    <th style="border-bottom: 2px solid var(--border-color); padding: 12px 8px; text-align: left;">STATUS</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in drivers_report %}
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 12px 8px; font-weight: 700; color: var(--text-color);">{{ item.name }}</td>
+                        <td style="padding: 12px 8px; color: var(--text-color);">{{ item.total_trips }}</td>
+                        <td style="padding: 12px 8px; color: var(--text-color);">{{ item.completed_trips }}</td>
+                        <td style="padding: 12px 8px; color: var(--info-color); font-weight: 600;">{{ item.safety_score }}</td>
+                        <td style="padding: 12px 8px; color: var(--text-color);">{{ item.fuel_consumed|floatformat:1 }} L</td>
+                        <td style="padding: 12px 8px; color: var(--success-color); font-weight: 600;">₹ {{ item.revenue|floatformat:0 }}</td>
+                        <td style="padding: 12px 8px;">
+                            <span class="badge badge-{% if item.status == 'Available' %}available{% elif item.status == 'On Trip' %}ontrip{% else %}suspended{% endif %}">
+                                {{ item.status }}
+                            </span>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 20px; color: var(--text-muted);">No records found.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

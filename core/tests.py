@@ -405,3 +405,83 @@ class ValidationConstraintsTest(TestCase):
         )
         with self.assertRaises(ValidationError):
             expense.full_clean()
+
+
+class ReportsAndQuickActionsTest(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        self.fm_group = Group.objects.create(name='Fleet Manager')
+        self.driver_group = Group.objects.create(name='Driver')
+        self.fa_group = Group.objects.create(name='Financial Analyst')
+
+        self.fm_user = User.objects.create_user(email="fm@test.com", password="password123")
+        self.fm_user.groups.add(self.fm_group)
+
+        self.driver_user = User.objects.create_user(email="driver@test.com", password="password123")
+        self.driver_user.groups.add(self.driver_group)
+        self.driver_profile = Driver.objects.create(
+            user=self.driver_user, name="Driver Test", license_number="DL-TEST", license_expiry=timezone.now().date() + datetime.timedelta(days=365)
+        )
+
+        self.fa_user = User.objects.create_user(email="fa@test.com", password="password123")
+        self.fa_user.groups.add(self.fa_group)
+
+        self.vehicle = Vehicle.objects.create(
+            registration_number="T-QA-100", make="Tata", model="Intra", year=2021,
+            capacity_kg=1000, odometer=1000, acquisition_cost=150000.00, status="Available"
+        )
+
+        self.trip = Trip.objects.create(
+            source="A", destination="B", vehicle=self.vehicle, driver=self.driver_profile,
+            cargo_weight=500, planned_distance=200, scheduled_date=timezone.now().date(), status="Draft"
+        )
+
+    def test_reports_view_accessible_to_fa(self):
+        self.client.login(email="fa@test.com", password="password123")
+        response = self.client.get(reverse('reports'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_export_endpoints_accessible_to_fa(self):
+        self.client.login(email="fa@test.com", password="password123")
+        csv_resp = self.client.get(reverse('export_vehicles_csv'))
+        self.assertEqual(csv_resp.status_code, 200)
+        self.assertEqual(csv_resp['Content-Type'], 'text/csv')
+
+        pdf_resp = self.client.get(reverse('export_vehicles_pdf'))
+        self.assertEqual(pdf_resp.status_code, 200)
+
+    def test_vehicle_quick_maintenance_workflow(self):
+        self.client.login(email="fm@test.com", password="password123")
+        response = self.client.post(reverse('vehicle_quick_maintenance', args=[self.vehicle.pk]))
+        self.assertEqual(response.status_code, 302) # Redirect back
+
+        self.vehicle.refresh_from_db()
+        self.assertEqual(self.vehicle.status, 'In Shop')
+        self.assertTrue(self.vehicle.maintenance_logs.filter(status='In Progress').exists())
+
+        # Resolve maintenance
+        response_res = self.client.post(reverse('vehicle_quick_resolve_maintenance', args=[self.vehicle.pk]))
+        self.assertEqual(response_res.status_code, 302)
+
+        self.vehicle.refresh_from_db()
+        self.assertEqual(self.vehicle.status, 'Available')
+        self.assertFalse(self.vehicle.maintenance_logs.filter(status='In Progress').exists())
+
+    def test_trip_quick_dispatch_and_complete(self):
+        self.client.login(email="driver@test.com", password="password123")
+        response = self.client.post(reverse('trip_quick_dispatch', args=[self.trip.pk]))
+        self.assertEqual(response.status_code, 302)
+
+        self.trip.refresh_from_db()
+        self.assertEqual(self.trip.status, 'Ongoing')
+        self.assertEqual(self.trip.vehicle.status, 'On Trip')
+
+        response_comp = self.client.post(reverse('trip_quick_complete', args=[self.trip.pk]))
+        self.assertEqual(response_comp.status_code, 302)
+
+        self.trip.refresh_from_db()
+        self.assertEqual(self.trip.status, 'Completed')
+        self.assertEqual(self.trip.vehicle.status, 'Available')
+        self.assertEqual(self.trip.vehicle.odometer, 1200) # 1000 + 200
+        self.assertEqual(self.trip.fuel_consumed, 30.0) # 200 * 0.15
+

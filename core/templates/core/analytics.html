@@ -1,0 +1,284 @@
+{% extends 'base.html' %}
+
+{% block title %}Analytics | TransitOps ERP{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{% url 'dashboard' %}">Dashboard</a>
+<span class="separator">/</span>
+<span>Analytics</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Analytics</h1>
+    <p style="color: var(--text-muted); margin-top: 4px;">Deep-dive fleet intelligence & operational KPIs</p>
+</div>
+
+<!-- 2x2 Grid of Custom Chart Cards -->
+<div class="dashboard-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-top: 24px;">
+    
+    <!-- 1. Revenue vs Cost Trend -->
+    <div class="detail-card" style="padding: 24px; display: flex; flex-direction: column;">
+        <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 16px; font-weight: 600;">Revenue vs Cost Trend</h3>
+        <div style="height: 320px; position: relative; width: 100%;">
+            <canvas id="revenueCostTrendChart"></canvas>
+        </div>
+    </div>
+
+    <!-- 2. Trip Analytics -->
+    <div class="detail-card" style="padding: 24px; display: flex; flex-direction: column;">
+        <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 16px; font-weight: 600;">Trip Analytics</h3>
+        <div style="height: 320px; position: relative; width: 100%;">
+            <canvas id="tripAnalyticsChart"></canvas>
+        </div>
+    </div>
+
+    <!-- 3. Fuel Efficiency -->
+    <div class="detail-card" style="padding: 24px; display: flex; flex-direction: column;">
+        <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 16px; font-weight: 600;">Fuel Efficiency (Litres over time)</h3>
+        <div style="height: 320px; position: relative; width: 100%;">
+            <canvas id="fuelEfficiencyTimeChart"></canvas>
+        </div>
+    </div>
+
+    <!-- 4. Top Driver Radar -->
+    <div class="detail-card" style="padding: 24px; display: flex; flex-direction: column;">
+        <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 16px; font-weight: 600;">Top Driver Radar (Safety vs Trips)</h3>
+        <div style="height: 320px; position: relative; width: 100%;">
+            <canvas id="topDriverRadarChart"></canvas>
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Theme Colors
+        const getColors = () => {
+            const isDark = document.documentElement.classList.contains('dark-theme');
+            return {
+                gridColor: isDark ? '#1f2937' : '#e2e8f0',
+                textColor: isDark ? '#f3f4f6' : '#334155',
+                costLine: '#ef4444',
+                revenueLine: '#10b981'
+            };
+        };
+
+        let colors = getColors();
+
+        // 1. Revenue vs Cost Trend Line Chart
+        const ctxTrend = document.getElementById('revenueCostTrendChart').getContext('2d');
+        const trendChart = new Chart(ctxTrend, {
+            type: 'line',
+            data: {
+                labels: {{ weekly_labels|safe }},
+                datasets: [
+                    {
+                        label: 'Cost',
+                        data: {{ weekly_cost|safe }},
+                        borderColor: colors.costLine,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointBackgroundColor: colors.costLine
+                    },
+                    {
+                        label: 'Revenue',
+                        data: {{ weekly_revenue|safe }},
+                        borderColor: colors.revenueLine,
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointBackgroundColor: colors.revenueLine
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: colors.textColor }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: colors.gridColor },
+                        ticks: { color: colors.textColor }
+                    },
+                    y: {
+                        grid: { color: colors.gridColor },
+                        ticks: {
+                            color: colors.textColor,
+                            callback: function(value) {
+                                if (value >= 100000) {
+                                    return '₹' + (value / 100000).toFixed(1) + 'L';
+                                }
+                                return '₹' + value.toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // 2. Trip Analytics Horizontal Bar Chart
+        const ctxTrips = document.getElementById('tripAnalyticsChart').getContext('2d');
+        const tripLabels = ['Completed', 'In Progress', 'Pending', 'Cancelled'];
+        const tripValues = [
+            {{ trip_counts.Completed }},
+            {{ trip_counts.Ongoing|default:0 }},
+            {{ trip_counts.Draft|default:0 }},
+            {{ trip_counts.Cancelled }}
+        ];
+
+        const tripsChart = new Chart(ctxTrips, {
+            type: 'bar',
+            data: {
+                labels: tripLabels,
+                datasets: [{
+                    data: tripValues,
+                    backgroundColor: '#3b82f6',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        grid: { color: colors.gridColor },
+                        ticks: { color: colors.textColor, stepSize: 5 }
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { color: colors.textColor }
+                    }
+                }
+            }
+        });
+
+        // 3. Fuel Efficiency Area Chart
+        const ctxFuel = document.getElementById('fuelEfficiencyTimeChart').getContext('2d');
+        const fuelChart = new Chart(ctxFuel, {
+            type: 'line',
+            data: {
+                labels: {{ fuel_labels|safe }},
+                datasets: [{
+                    label: 'Fuel Logged (L)',
+                    data: {{ fuel_liters|safe }},
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 2,
+                    pointRadius: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        grid: { color: colors.gridColor },
+                        ticks: { color: colors.textColor }
+                    },
+                    y: {
+                        grid: { color: colors.gridColor },
+                        ticks: { color: colors.textColor }
+                    }
+                }
+            }
+        });
+
+        // 4. Top Driver Radar Chart
+        const ctxRadar = document.getElementById('topDriverRadarChart').getContext('2d');
+        const radarChart = new Chart(ctxRadar, {
+            type: 'radar',
+            data: {
+                labels: {{ radar_labels|safe }},
+                datasets: [
+                    {
+                        label: 'Safety Score',
+                        data: {{ radar_safety|safe }},
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                        pointBackgroundColor: '#10b981'
+                    },
+                    {
+                        label: 'Completed Trips',
+                        data: {{ radar_trips|safe }},
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        pointBackgroundColor: '#3b82f6'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: colors.textColor }
+                    }
+                },
+                scales: {
+                    r: {
+                        grid: { color: colors.gridColor },
+                        angleLines: { color: colors.gridColor },
+                        pointLabels: { color: colors.textColor },
+                        ticks: { display: false }
+                    }
+                }
+            }
+        });
+
+        // Theme toggle updates
+        const observer = new MutationObserver(() => {
+            colors = getColors();
+            
+            // Update Line Chart
+            trendChart.options.scales.x.grid.color = colors.gridColor;
+            trendChart.options.scales.y.grid.color = colors.gridColor;
+            trendChart.options.scales.x.ticks.color = colors.textColor;
+            trendChart.options.scales.y.ticks.color = colors.textColor;
+            trendChart.options.plugins.legend.labels.color = colors.textColor;
+            trendChart.update();
+
+            // Update Bar Chart
+            tripsChart.options.scales.x.grid.color = colors.gridColor;
+            tripsChart.options.scales.x.ticks.color = colors.textColor;
+            tripsChart.options.scales.y.ticks.color = colors.textColor;
+            tripsChart.update();
+
+            // Update Fuel Chart
+            fuelChart.options.scales.x.grid.color = colors.gridColor;
+            fuelChart.options.scales.y.grid.color = colors.gridColor;
+            fuelChart.options.scales.x.ticks.color = colors.textColor;
+            fuelChart.options.scales.y.ticks.color = colors.textColor;
+            fuelChart.update();
+
+            // Update Radar Chart
+            radarChart.options.scales.r.grid.color = colors.gridColor;
+            radarChart.options.scales.r.angleLines.color = colors.gridColor;
+            radarChart.options.scales.r.pointLabels.color = colors.textColor;
+            radarChart.options.plugins.legend.labels.color = colors.textColor;
+            radarChart.update();
+        });
+
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    });
+</script>
+{% endblock %}

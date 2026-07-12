@@ -93,10 +93,21 @@
                                 {{ vehicle.status }}
                             </span>
                         </td>
-                        <td style="text-align: right;">
-                            <a href="{% url 'vehicle_detail' vehicle.pk %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px; margin-right: 4px;">View</a>
+                        <td style="text-align: right; display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
+                            <a href="{% url 'vehicle_detail' vehicle.pk %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">View</a>
                             {% if perms.core.change_vehicle %}
                                 <a href="{% url 'vehicle_update' vehicle.pk %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Edit</a>
+                            {% endif %}
+                            {% if vehicle.status == 'Available' and perms.core.add_maintenancelog %}
+                                <form action="{% url 'vehicle_quick_maintenance' vehicle.pk %}" method="post" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;">🔧 Service</button>
+                                </form>
+                            {% elif vehicle.status == 'In Shop' and perms.core.change_maintenancelog %}
+                                <form action="{% url 'vehicle_quick_resolve_maintenance' vehicle.pk %}" method="post" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-success" style="padding: 4px 8px; font-size: 12px; background-color: var(--success-color); border-color: var(--success-color);">✅ Resolve</button>
+                                </form>
                             {% endif %}
                         </td>
                     </tr>

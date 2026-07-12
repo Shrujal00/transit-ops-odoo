@@ -11,6 +11,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Main Stylesheet -->
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme') || 'light';
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark-theme');
+            }
+        })();
+    </script>
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -63,6 +71,16 @@
                             <i>💳</i> Finance & ROI
                         </a>
                     </li>
+                    <li class="{% if request.resolver_match.url_name == 'analytics' %}active{% endif %}">
+                        <a href="{% url 'analytics' %}">
+                            <i>📈</i> Analytics
+                        </a>
+                    </li>
+                    <li class="{% if request.resolver_match.url_name == 'reports' %}active{% endif %}">
+                        <a href="{% url 'reports' %}">
+                            <i>📋</i> Reports
+                        </a>
+                    </li>
                 {% endif %}
             </ul>
         </nav>
@@ -88,14 +106,43 @@
                 <a href="{% url 'dashboard' %}">Dashboard</a>
                 {% endblock %}
             </div>
-            <div class="user-profile">
-                {% if request.user.is_authenticated %}
-                    <span class="role-badge">{{ request.user.role.name|default:"Superuser" }}</span>
-                    <span>{{ request.user.first_name }} {{ request.user.last_name }}</span>
-                {% else %}
-                    <span class="role-badge">Anonymous</span>
-                {% endif %}
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <button id="theme-toggle" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px; display: flex; align-items: center; gap: 6px; cursor: pointer; border-radius: 4px; border: 1px solid var(--border-color); background-color: var(--card-bg); color: var(--text-color);">
+                    <span id="theme-toggle-icon">🌙</span> <span id="theme-toggle-text">Dark Mode</span>
+                </button>
+                <div class="user-profile">
+                    {% if request.user.is_authenticated %}
+                        <span class="role-badge">{{ request.user.role.name|default:"Superuser" }}</span>
+                        <span>{{ request.user.first_name }} {{ request.user.last_name }}</span>
+                    {% else %}
+                        <span class="role-badge">Anonymous</span>
+                    {% endif %}
+                </div>
             </div>
+            <script>
+                document.addEventListener('DOMContentLoaded', () => {
+                    const themeToggle = document.getElementById('theme-toggle');
+                    const themeIcon = document.getElementById('theme-toggle-icon');
+                    const themeText = document.getElementById('theme-toggle-text');
+                    
+                    const syncThemeUI = () => {
+                        const isDark = document.documentElement.classList.contains('dark-theme');
+                        if (themeIcon) themeIcon.textContent = isDark ? '☀️' : '🌙';
+                        if (themeText) themeText.textContent = isDark ? 'Light Mode' : 'Dark Mode';
+                    };
+                    
+                    syncThemeUI();
+                    
+                    if (themeToggle) {
+                        themeToggle.addEventListener('click', () => {
+                            document.documentElement.classList.toggle('dark-theme');
+                            const isDark = document.documentElement.classList.contains('dark-theme');
+                            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+                            syncThemeUI();
+                        });
+                    }
+                });
+            </script>
         </header>
 
         <!-- Container for page specific content -->

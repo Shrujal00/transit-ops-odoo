@@ -73,8 +73,21 @@
                                 {{ trip.status }}
                             </span>
                         </td>
-                        <td style="text-align: right;">
-                            <a href="{% url 'trip_detail' trip.pk %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">View Details</a>
+                        <td style="text-align: right; display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
+                            <a href="{% url 'trip_detail' trip.pk %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">View</a>
+                            {% if trip.status == 'Draft' and perms.core.change_trip %}
+                                <form action="{% url 'trip_quick_dispatch' trip.pk %}" method="post" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;">🚀 Dispatch</button>
+                                </form>
+                            {% elif trip.status == 'Ongoing' %}
+                                {% if request.user.is_superuser or request.user.driver_profile == trip.driver %}
+                                    <form action="{% url 'trip_quick_complete' trip.pk %}" method="post" style="display: inline;">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-success" style="padding: 4px 8px; font-size: 12px; background-color: var(--success-color); border-color: var(--success-color);">✅ Complete</button>
+                                    </form>
+                                {% endif %}
+                            {% endif %}
                         </td>
                     </tr>
                 {% empty %}

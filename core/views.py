@@ -790,6 +790,82 @@ class FinanceReportView(LoginRequiredMixin, FinancialRequiredMixin, TemplateView
         context.update(finance_data)
         return context
 
+class AnalyticsView(LoginRequiredMixin, FinancialRequiredMixin, TemplateView):
+    template_name = 'core/analytics.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        today = timezone.now().date()
+
+        # 1. Weekly Revenue vs Cost Trend (W-7 to W-0)
+        weekly_labels = []
+        weekly_revenue = []
+        weekly_cost = []
+        for i in range(7, -1, -1):
+            start = today - datetime.timedelta(days=(i+1)*7)
+            end = today - datetime.timedelta(days=i*7)
+            weekly_labels.append(f"W-{i}")
+            
+            # Revenue
+            rev_val = Trip.objects.filter(
+                scheduled_date__range=[start, end], status='Completed'
+            ).aggregate(total=Sum('revenue'))['total'] or Decimal('0.00')
+            weekly_revenue.append(float(rev_val))
+            
+            # Cost
+            maint_val = MaintenanceLog.objects.filter(
+                start_date__range=[start, end]
+            ).aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
+            fuel_val = FuelLog.objects.filter(
+                date__range=[start, end]
+            ).aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
+            exp_val = Expense.objects.filter(
+                date__range=[start, end]
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+            
+            total_c = maint_val + fuel_val + exp_val
+            weekly_cost.append(float(total_c))
+
+        # 2. Trip Analytics
+        trip_counts = {
+            'Completed': Trip.objects.filter(status='Completed').count(),
+            'In Progress': Trip.objects.filter(status='Ongoing').count(),
+            'Pending': Trip.objects.filter(status='Draft').count(),
+            'Cancelled': Trip.objects.filter(status='Cancelled').count(),
+        }
+
+        # 3. Fuel Efficiency (Litres over time) for last 14 days
+        fuel_labels = []
+        fuel_liters = []
+        for i in range(13, -1, -1):
+            day = today - datetime.timedelta(days=i)
+            fuel_labels.append(day.strftime('%m-%d'))
+            liters = FuelLog.objects.filter(date=day).aggregate(total=Sum('liters'))['total'] or Decimal('0.00')
+            fuel_liters.append(float(liters))
+
+        # 4. Top Driver Radar (Safety vs Trips) - pick top 6 drivers
+        top_drivers = Driver.objects.exclude(user__isnull=True).order_by('-safety_score')[:6]
+        radar_labels = []
+        radar_safety = []
+        radar_trips = []
+        for d in top_drivers:
+            radar_labels.append(d.name.split()[0])
+            radar_safety.append(d.safety_score)
+            radar_trips.append(d.trips.filter(status='Completed').count())
+
+        context.update({
+            'weekly_labels': weekly_labels,
+            'weekly_revenue': weekly_revenue,
+            'weekly_cost': weekly_cost,
+            'trip_counts': trip_counts,
+            'fuel_labels': fuel_labels,
+            'fuel_liters': fuel_liters,
+            'radar_labels': radar_labels,
+            'radar_safety': radar_safety,
+            'radar_trips': radar_trips,
+        })
+        return context
+
 @login_required
 def finance_api_view(request):
     if not (request.user.is_superuser or request.user.groups.filter(name__in=['Fleet Manager', 'Financial Analyst']).exists()):
@@ -832,3 +908,441 @@ def finance_api_view(request):
     }
     
     return JsonResponse(response_data)
+
+
+# Quick Actions (One-Click Operations)
+from django.views.decorators.http import require_POST
+
+@login_required
+@require_POST
+def vehicle_quick_maintenance(request, pk):
+    if not (request.user.is_superuser or request.user.groups.filter(name='Fleet Manager').exists()):
+        raise PermissionDenied("Only Fleet Managers can change maintenance status.")
+    
+    vehicle = get_object_or_404(Vehicle, pk=pk)
+    if vehicle.status != 'Available':
+        messages.error(request, "Only available vehicles can be sent to maintenance.")
+        return redirect('vehicle_list')
+        
+    with transaction.atomic():
+        vehicle.status = 'In Shop'
+        vehicle.save(update_fields=['status'])
+        
+        log = MaintenanceLog(
+            vehicle=vehicle,
+            description="Scheduled via Quick Action",
+            cost=Decimal('0.00'),
+            start_date=timezone.now().date(),
+            status='In Progress'
+        )
+        log._bypass_date_validation = True
+        log.save()
+        
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get_for_model(Vehicle)
+        AuditLog.objects.create(
+            user=request.user,
+            content_type=ct,
+            object_id=vehicle.id,
+            action='Status Change',
+            old_status='Available',
+            new_status='In Shop',
+            details="Vehicle sent to maintenance via quick action."
+        )
+        messages.success(request, f"Vehicle {vehicle.registration_number} sent to maintenance.")
+        
+    return redirect('vehicle_list')
+
+@login_required
+@require_POST
+def vehicle_quick_resolve_maintenance(request, pk):
+    if not (request.user.is_superuser or request.user.groups.filter(name='Fleet Manager').exists()):
+        raise PermissionDenied("Only Fleet Managers can change maintenance status.")
+        
+    vehicle = get_object_or_404(Vehicle, pk=pk)
+    if vehicle.status != 'In Shop':
+        messages.error(request, "Only vehicles in shop can be returned to service.")
+        return redirect('vehicle_list')
+        
+    with transaction.atomic():
+        log = vehicle.maintenance_logs.filter(status='In Progress').first()
+        if log:
+            log.status = 'Completed'
+            log.end_date = timezone.now().date()
+            log._bypass_date_validation = True
+            log.save()
+            
+        vehicle.status = 'Available'
+        vehicle.save(update_fields=['status'])
+        
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get_for_model(Vehicle)
+        AuditLog.objects.create(
+            user=request.user,
+            content_type=ct,
+            object_id=vehicle.id,
+            action='Status Change',
+            old_status='In Shop',
+            new_status='Available',
+            details="Vehicle returned to service via quick action."
+        )
+        messages.success(request, f"Vehicle {vehicle.registration_number} returned to service.")
+        
+    return redirect('vehicle_list')
+
+@login_required
+@require_POST
+def trip_quick_dispatch(request, pk):
+    if not (request.user.is_superuser or request.user.groups.filter(name='Driver').exists()):
+        raise PermissionDenied("Only Drivers can dispatch trips.")
+        
+    trip = get_object_or_404(Trip, pk=pk)
+    if trip.status != 'Draft':
+        messages.error(request, "Only draft trips can be dispatched.")
+        return redirect('trip_list')
+        
+    with transaction.atomic():
+        trip.status = 'Ongoing'
+        trip.save(update_fields=['status'])
+        
+        vehicle = trip.vehicle
+        vehicle.status = 'On Trip'
+        vehicle.save(update_fields=['status'])
+        
+        driver = trip.driver
+        driver.status = 'On Trip'
+        driver.save(update_fields=['status'])
+        
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get_for_model(Trip)
+        AuditLog.objects.create(
+            user=request.user,
+            content_type=ct,
+            object_id=trip.id,
+            action='Dispatch',
+            old_status='Draft',
+            new_status='Ongoing',
+            details="Trip dispatched via quick action."
+        )
+        messages.success(request, f"Trip {trip.id} dispatched successfully.")
+        
+    return redirect('trip_list')
+
+@login_required
+@require_POST
+def trip_quick_complete(request, pk):
+    trip = get_object_or_404(Trip, pk=pk)
+    is_driver = request.user.is_superuser or (request.user.groups.filter(name='Driver').exists() and hasattr(request.user, 'driver_profile') and request.user.driver_profile == trip.driver)
+    
+    if not is_driver:
+        raise PermissionDenied("Only the assigned Driver can complete this trip.")
+        
+    if trip.status != 'Ongoing':
+        messages.error(request, "Only ongoing trips can be completed.")
+        return redirect('trip_list')
+        
+    with transaction.atomic():
+        end_odo = trip.vehicle.odometer + trip.planned_distance
+        fuel = Decimal(str(trip.planned_distance * 0.15))
+        
+        trip.status = 'Completed'
+        trip.end_time = timezone.now()
+        trip.end_odometer = end_odo
+        trip.fuel_consumed = fuel
+        trip._bypass_date_validation = True
+        trip.save()
+        
+        vehicle = trip.vehicle
+        vehicle.status = 'Available'
+        vehicle.odometer = end_odo
+        vehicle.save(update_fields=['status', 'odometer'])
+        
+        driver = trip.driver
+        driver.status = 'Available'
+        driver.save(update_fields=['status'])
+        
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get_for_model(Trip)
+        AuditLog.objects.create(
+            user=request.user,
+            content_type=ct,
+            object_id=trip.id,
+            action='Complete',
+            old_status='Ongoing',
+            new_status='Completed',
+            details=f"Trip completed via quick action. Final Odo: {end_odo}, Fuel Consumed: {fuel} L."
+        )
+        messages.success(request, f"Trip {trip.id} completed successfully.")
+        
+    return redirect('trip_list')
+
+
+# Reports & Exports View
+class ReportsView(LoginRequiredMixin, FinancialRequiredMixin, TemplateView):
+    template_name = 'core/reports.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Vehicles performance data
+        vehicles = Vehicle.objects.all()
+        vehicles_report = []
+        for v in vehicles[:100]: # limit to top 100 for display
+            trips_count = v.trips.filter(status='Completed').count()
+            rev = v.trips.filter(status='Completed').aggregate(total=Sum('revenue'))['total'] or Decimal('0.00')
+            fuel_c = v.fuel_logs.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
+            maint_c = v.maintenance_logs.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
+            exp_c = v.expenses.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+            
+            total_cost = fuel_c + maint_c + exp_c
+            profit = rev - total_cost
+            roi = (profit / v.acquisition_cost * 100) if v.acquisition_cost > 0 else Decimal('0.00')
+            
+            vehicles_report.append({
+                'registration_number': v.registration_number,
+                'model': f"{v.make} {v.model}",
+                'trips': trips_count,
+                'revenue': rev,
+                'cost': total_cost,
+                'profit': profit,
+                'roi': roi
+            })
+            
+        # Drivers performance data
+        drivers = Driver.objects.all()
+        drivers_report = []
+        for d in drivers[:100]: # limit to top 100 for display
+            total_trips = d.trips.count()
+            comp_trips = d.trips.filter(status='Completed').count()
+            fuel = d.trips.filter(status='Completed').aggregate(total=Sum('fuel_consumed'))['total'] or Decimal('0.00')
+            rev = d.trips.filter(status='Completed').aggregate(total=Sum('revenue'))['total'] or Decimal('0.00')
+            
+            drivers_report.append({
+                'name': d.name,
+                'total_trips': total_trips,
+                'completed_trips': comp_trips,
+                'safety_score': d.safety_score,
+                'fuel_consumed': fuel,
+                'revenue': rev,
+                'status': d.status
+            })
+            
+        context.update({
+            'vehicles_report': vehicles_report,
+            'drivers_report': drivers_report,
+        })
+        return context
+
+
+import csv
+from django.http import HttpResponse
+
+@login_required
+def export_vehicles_csv(request):
+    if not (request.user.is_superuser or request.user.groups.filter(name__in=['Fleet Manager', 'Financial Analyst']).exists()):
+        raise PermissionDenied()
+        
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="vehicle_performance_report.csv"'
+    
+    writer = csv.writer(response)
+    writer.writerow(['REG', 'MODEL', 'TRIPS', 'REVENUE (INR)', 'COST (INR)', 'PROFIT (INR)', 'ROI (%)'])
+    
+    vehicles = Vehicle.objects.all()
+    for v in vehicles:
+        trips_count = v.trips.filter(status='Completed').count()
+        rev = v.trips.filter(status='Completed').aggregate(total=Sum('revenue'))['total'] or Decimal('0.00')
+        fuel_c = v.fuel_logs.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
+        maint_c = v.maintenance_logs.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
+        exp_c = v.expenses.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        total_cost = fuel_c + maint_c + exp_c
+        profit = rev - total_cost
+        roi = (profit / v.acquisition_cost * 100) if v.acquisition_cost > 0 else Decimal('0.00')
+        
+        writer.writerow([
+            v.registration_number,
+            f"{v.make} {v.model}",
+            trips_count,
+            float(rev),
+            float(total_cost),
+            float(profit),
+            f"{float(roi):.2f}%"
+        ])
+    return response
+
+@login_required
+def export_drivers_csv(request):
+    if not (request.user.is_superuser or request.user.groups.filter(name__in=['Fleet Manager', 'Financial Analyst']).exists()):
+        raise PermissionDenied()
+        
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="driver_performance_report.csv"'
+    
+    writer = csv.writer(response)
+    writer.writerow(['DRIVER NAME', 'TOTAL TRIPS', 'COMPLETED TRIPS', 'SAFETY SCORE', 'FUEL CONSUMED (L)', 'TOTAL REVENUE (INR)', 'STATUS'])
+    
+    drivers = Driver.objects.all()
+    for d in drivers:
+        total_trips = d.trips.count()
+        comp_trips = d.trips.filter(status='Completed').count()
+        fuel = d.trips.filter(status='Completed').aggregate(total=Sum('fuel_consumed'))['total'] or Decimal('0.00')
+        rev = d.trips.filter(status='Completed').aggregate(total=Sum('revenue'))['total'] or Decimal('0.00')
+        
+        writer.writerow([
+            d.name,
+            total_trips,
+            comp_trips,
+            d.safety_score,
+            float(fuel),
+            float(rev),
+            d.status
+        ])
+    return response
+
+@login_required
+def export_vehicles_pdf(request):
+    if not (request.user.is_superuser or request.user.groups.filter(name__in=['Fleet Manager', 'Financial Analyst']).exists()):
+        raise PermissionDenied()
+        
+    vehicles = Vehicle.objects.all()
+    vehicles_report = []
+    for v in vehicles:
+        trips_count = v.trips.filter(status='Completed').count()
+        rev = v.trips.filter(status='Completed').aggregate(total=Sum('revenue'))['total'] or Decimal('0.00')
+        fuel_c = v.fuel_logs.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
+        maint_c = v.maintenance_logs.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
+        exp_c = v.expenses.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        total_cost = fuel_c + maint_c + exp_c
+        profit = rev - total_cost
+        roi = (profit / v.acquisition_cost * 100) if v.acquisition_cost > 0 else Decimal('0.00')
+        
+        vehicles_report.append({
+            'registration_number': v.registration_number,
+            'model': f"{v.make} {v.model}",
+            'trips': trips_count,
+            'revenue': rev,
+            'cost': total_cost,
+            'profit': profit,
+            'roi': roi
+        })
+        
+    html = f"""
+    <html>
+    <head>
+        <title>Vehicle Performance Report</title>
+        <style>
+            body {{ font-family: sans-serif; padding: 20px; }}
+            h1 {{ text-align: center; color: #1e293b; }}
+            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+            th, td {{ border: 1px solid #cbd5e1; padding: 10px; text-align: left; }}
+            th {{ background-color: #f1f5f9; }}
+        </style>
+    </head>
+    <body onload="window.print()">
+        <h1>Vehicle Performance Report</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>REG</th>
+                    <th>MODEL</th>
+                    <th>TRIPS</th>
+                    <th>REVENUE</th>
+                    <th>COST</th>
+                    <th>PROFIT</th>
+                    <th>ROI</th>
+                </tr>
+            </thead>
+            <tbody>
+    """
+    for item in vehicles_report:
+        html += f"""
+                <tr>
+                    <td>{item['registration_number']}</td>
+                    <td>{item['model']}</td>
+                    <td>{item['trips']}</td>
+                    <td>₹{item['revenue']:,.2f}</td>
+                    <td>₹{item['cost']:,.2f}</td>
+                    <td>₹{item['profit']:,.2f}</td>
+                    <td>{item['roi']:.2f}%</td>
+                </tr>
+        """
+    html += """
+            </tbody>
+        </table>
+    </body>
+    </html>
+    """
+    return HttpResponse(html)
+
+@login_required
+def export_drivers_pdf(request):
+    if not (request.user.is_superuser or request.user.groups.filter(name__in=['Fleet Manager', 'Financial Analyst']).exists()):
+        raise PermissionDenied()
+        
+    drivers = Driver.objects.all()
+    drivers_report = []
+    for d in drivers:
+        total_trips = d.trips.count()
+        comp_trips = d.trips.filter(status='Completed').count()
+        fuel = d.trips.filter(status='Completed').aggregate(total=Sum('fuel_consumed'))['total'] or Decimal('0.00')
+        rev = d.trips.filter(status='Completed').aggregate(total=Sum('revenue'))['total'] or Decimal('0.00')
+        
+        drivers_report.append({
+            'name': d.name,
+            'total_trips': total_trips,
+            'completed_trips': comp_trips,
+            'safety_score': d.safety_score,
+            'fuel_consumed': fuel,
+            'revenue': rev,
+            'status': d.status
+        })
+        
+    html = f"""
+    <html>
+    <head>
+        <title>Driver Performance Report</title>
+        <style>
+            body {{ font-family: sans-serif; padding: 20px; }}
+            h1 {{ text-align: center; color: #1e293b; }}
+            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+            th, td {{ border: 1px solid #cbd5e1; padding: 10px; text-align: left; }}
+            th {{ background-color: #f1f5f9; }}
+        </style>
+    </head>
+    <body onload="window.print()">
+        <h1>Driver Performance Report</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>DRIVER NAME</th>
+                    <th>TOTAL TRIPS</th>
+                    <th>COMPLETED TRIPS</th>
+                    <th>SAFETY SCORE</th>
+                    <th>FUEL CONSUMED (L)</th>
+                    <th>TOTAL REVENUE</th>
+                    <th>STATUS</th>
+                </tr>
+            </thead>
+            <tbody>
+    """
+    for item in drivers_report:
+        html += f"""
+                <tr>
+                    <td>{item['name']}</td>
+                    <td>{item['total_trips']}</td>
+                    <td>{item['completed_trips']}</td>
+                    <td>{item['safety_score']}</td>
+                    <td>{item['fuel_consumed']:.2f} L</td>
+                    <td>₹{item['revenue']:,.2f}</td>
+                    <td>{item['status']}</td>
+                </tr>
+        """
+    html += """
+            </tbody>
+        </table>
+    </body>
+    </html>
+    """
+    return HttpResponse(html)

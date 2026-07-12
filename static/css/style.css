@@ -596,3 +596,74 @@ footer {
     margin-top: 4px;
 }
 
+/* Dark Mode Theme */
+.dark-theme {
+    --primary-color: #030712;
+    --primary-light: #1f2937;
+    --accent-color: #6366f1;
+    --accent-hover: #4f46e5;
+    --bg-color: #090d16;
+    --card-bg: #111827;
+    --text-color: #f3f4f6;
+    --text-muted: #9ca3af;
+    --border-color: #1f2937;
+    --success-color: #10b981;
+    --warning-color: #fbbf24;
+    --danger-color: #ef4444;
+    --info-color: #60a5fa;
+}
+
+.dark-theme .form-group input, 
+.dark-theme .form-group select, 
+.dark-theme .form-group textarea {
+    background-color: #1f2937;
+    color: #f3f4f6;
+    border-color: #374151;
+}
+
+.dark-theme .status-step {
+    background-color: #1f2937;
+    color: #9ca3af;
+}
+
+.dark-theme .status-step.active {
+    background-color: var(--accent-color);
+    color: #ffffff;
+}
+
+.dark-theme header.top-bar {
+    background-color: #111827;
+    border-bottom: 1px solid #1f2937;
+}
+
+.dark-theme .logo {
+    border-bottom-color: #1f2937;
+}
+
+.dark-theme aside.sidebar {
+    background-color: #030712;
+    border-right: 1px solid #1f2937;
+}
+
+.dark-theme aside.sidebar nav a:hover, 
+.dark-theme aside.sidebar nav li.active a {
+    background-color: #1f2937;
+}
+
+.dark-theme .smart-button {
+    background: #111827;
+}
+
+.dark-theme .smart-button:hover {
+    background-color: #1f2937;
+}
+
+.dark-theme .user-profile .role-badge {
+    background-color: #1f2937;
+    color: #f3f4f6;
+}
+
+.dark-theme .table-responsive table tbody tr:hover {
+    background-color: #1f2937;
+}
+
