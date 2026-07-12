@@ -18,9 +18,9 @@
 
 <!-- Search & Filters Bar (Odoo Style) -->
 <div class="filters-bar">
-    <form method="get" action="" class="search-form">
-        <input type="text" name="q" placeholder="Search vehicles..." value="{{ search_query }}">
-        <button type="submit" class="btn btn-primary">Search</button>
+    <form method="get" action="" class="search-box">
+        <i>🔍</i>
+        <input type="text" name="q" placeholder="Search registration number, make, model..." value="{{ search_query }}">
         {% if current_status %}
             <input type="hidden" name="status" value="{{ current_status }}">
         {% endif %}
