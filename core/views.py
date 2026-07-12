@@ -80,7 +80,7 @@ def dashboard_view(request):
     # Cost breakdown for Chart.js
     total_fuel_cost = FuelLog.objects.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
     total_maint_cost = MaintenanceLog.objects.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
-    total_expense_cost = Expense.objects.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
+    total_expense_cost = Expense.objects.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
     
     cost_breakdown = {
         'Fuel': float(total_fuel_cost),

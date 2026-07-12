@@ -339,3 +339,8 @@ class FinanceAnalyticsTest(TestCase):
         data = api_response.json()
         self.assertAlmostEqual(data['fleet_roi_percentage'], ((1000.00 - 300.00) / 40000.00) * 100.0)
         self.assertEqual(float(data['fleet_fuel_efficiency']), 5.0)
+
+    def test_dashboard_view_renders(self):
+        self.client.login(email="analyst@test.com", password="password123")
+        response = self.client.get(reverse('dashboard'))
+        self.assertEqual(response.status_code, 200)
