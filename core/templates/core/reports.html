@@ -60,6 +60,23 @@
             </tbody>
         </table>
     </div>
+    {% if v_is_paginated %}
+    <div class="pagination" style="display: flex; justify-content: center; gap: 8px; margin-top: 16px; align-items: center;">
+        {% if v_page_obj.has_previous %}
+            <a href="?vpage=1{% if d_page_obj %}&dpage={{ d_page_obj.number }}{% endif %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">&laquo; First</a>
+            <a href="?vpage={{ v_page_obj.previous_page_number }}{% if d_page_obj %}&dpage={{ d_page_obj.number }}{% endif %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Previous</a>
+        {% endif %}
+
+        <span style="font-size: 13px; font-weight: 600; color: var(--text-muted);">
+            Page {{ v_page_obj.number }} of {{ v_page_obj.paginator.num_pages }}
+        </span>
+
+        {% if v_page_obj.has_next %}
+            <a href="?vpage={{ v_page_obj.next_page_number }}{% if d_page_obj %}&dpage={{ d_page_obj.number }}{% endif %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Next</a>
+            <a href="?vpage={{ v_page_obj.paginator.num_pages }}{% if d_page_obj %}&dpage={{ d_page_obj.number }}{% endif %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Last &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
 </div>
 
 <!-- Driver Performance Table Section -->
@@ -112,5 +129,22 @@
             </tbody>
         </table>
     </div>
+    {% if d_is_paginated %}
+    <div class="pagination" style="display: flex; justify-content: center; gap: 8px; margin-top: 16px; align-items: center;">
+        {% if d_page_obj.has_previous %}
+            <a href="?dpage=1{% if v_page_obj %}&vpage={{ v_page_obj.number }}{% endif %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">&laquo; First</a>
+            <a href="?dpage={{ d_page_obj.previous_page_number }}{% if v_page_obj %}&vpage={{ v_page_obj.number }}{% endif %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Previous</a>
+        {% endif %}
+
+        <span style="font-size: 13px; font-weight: 600; color: var(--text-muted);">
+            Page {{ d_page_obj.number }} of {{ d_page_obj.paginator.num_pages }}
+        </span>
+
+        {% if d_page_obj.has_next %}
+            <a href="?dpage={{ d_page_obj.next_page_number }}{% if v_page_obj %}&vpage={{ v_page_obj.number }}{% endif %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Next</a>
+            <a href="?dpage={{ d_page_obj.paginator.num_pages }}{% if v_page_obj %}&vpage={{ v_page_obj.number }}{% endif %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Last &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

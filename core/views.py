@@ -1,5 +1,6 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse_lazy
+from django.core.paginator import Paginator
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView, TemplateView
 from django.db.models import Count, Q, Sum
 from django.db import transaction
@@ -789,6 +790,17 @@ class FinanceReportView(LoginRequiredMixin, FinancialRequiredMixin, TemplateView
         start_date = self.request.GET.get('start_date')
         end_date = self.request.GET.get('end_date')
         finance_data = _get_finance_data(start_date, end_date)
+        
+        # Paginate vehicles list
+        vehicles_list = finance_data['vehicles']
+        page = self.request.GET.get('page', 1)
+        paginator = Paginator(vehicles_list, 15)
+        page_obj = paginator.get_page(page)
+        
+        finance_data['vehicles'] = page_obj
+        finance_data['is_paginated'] = page_obj.has_other_pages()
+        finance_data['page_obj'] = page_obj
+        
         context.update(finance_data)
         return context
 
@@ -1057,7 +1069,7 @@ def trip_quick_complete(request, pk):
         
     with transaction.atomic():
         end_odo = trip.vehicle.odometer + trip.planned_distance
-        fuel = Decimal(str(trip.planned_distance * 0.15))
+        fuel = Decimal(f"{trip.planned_distance * 0.15:.2f}")
         
         trip.status = 'Completed'
         trip.end_time = timezone.now()
@@ -1101,7 +1113,7 @@ class ReportsView(LoginRequiredMixin, FinancialRequiredMixin, TemplateView):
         # Vehicles performance data
         vehicles = Vehicle.objects.all()
         vehicles_report = []
-        for v in vehicles[:100]: # limit to top 100 for display
+        for v in vehicles:
             trips_count = v.trips.filter(status='Completed').count()
             rev = v.trips.filter(status='Completed').aggregate(total=Sum('revenue'))['total'] or Decimal('0.00')
             fuel_c = v.fuel_logs.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
@@ -1125,7 +1137,7 @@ class ReportsView(LoginRequiredMixin, FinancialRequiredMixin, TemplateView):
         # Drivers performance data
         drivers = Driver.objects.all()
         drivers_report = []
-        for d in drivers[:100]: # limit to top 100 for display
+        for d in drivers:
             total_trips = d.trips.count()
             comp_trips = d.trips.filter(status='Completed').count()
             fuel = d.trips.filter(status='Completed').aggregate(total=Sum('fuel_consumed'))['total'] or Decimal('0.00')
@@ -1141,9 +1153,23 @@ class ReportsView(LoginRequiredMixin, FinancialRequiredMixin, TemplateView):
                 'status': d.status
             })
             
+        # Paginate vehicles list
+        v_page = self.request.GET.get('vpage', 1)
+        v_paginator = Paginator(vehicles_report, 15)
+        v_page_obj = v_paginator.get_page(v_page)
+        
+        # Paginate drivers list
+        d_page = self.request.GET.get('dpage', 1)
+        d_paginator = Paginator(drivers_report, 15)
+        d_page_obj = d_paginator.get_page(d_page)
+        
         context.update({
-            'vehicles_report': vehicles_report,
-            'drivers_report': drivers_report,
+            'vehicles_report': v_page_obj,
+            'drivers_report': d_page_obj,
+            'v_page_obj': v_page_obj,
+            'd_page_obj': d_page_obj,
+            'v_is_paginated': v_page_obj.has_other_pages(),
+            'd_is_paginated': d_page_obj.has_other_pages(),
         })
         return context
 
