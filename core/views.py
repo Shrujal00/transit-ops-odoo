@@ -535,6 +535,7 @@ def trip_complete_view(request, pk):
             trip.end_time = timezone.now()
             trip.end_odometer = end_odo
             trip.fuel_consumed = fuel
+            trip._bypass_date_validation = True
             trip.full_clean()
             trip.save()
             

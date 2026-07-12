@@ -78,13 +78,19 @@
                             {% if trip.status == 'Draft' and perms.core.change_trip %}
                                 <form action="{% url 'trip_quick_dispatch' trip.pk %}" method="post" style="display: inline;">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-primary" style="padding: 4px 8px; font-size: 12px;">🚀 Dispatch</button>
+                                    <button type="submit" class="btn btn-primary" style="padding: 4px 8px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px;">
+                                        <svg style="width:12px; height:12px;" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                                        Dispatch
+                                    </button>
                                 </form>
                             {% elif trip.status == 'Ongoing' %}
                                 {% if request.user.is_superuser or request.user.driver_profile == trip.driver %}
                                     <form action="{% url 'trip_quick_complete' trip.pk %}" method="post" style="display: inline;">
                                         {% csrf_token %}
-                                        <button type="submit" class="btn btn-success" style="padding: 4px 8px; font-size: 12px; background-color: var(--success-color); border-color: var(--success-color);">✅ Complete</button>
+                                        <button type="submit" class="btn btn-success" style="padding: 4px 8px; font-size: 12px; background-color: var(--success-color); border-color: var(--success-color); display: inline-flex; align-items: center; gap: 4px;">
+                                            <svg style="width:12px; height:12px;" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                            Complete
+                                        </button>
                                     </form>
                                 {% endif %}
                             {% endif %}
