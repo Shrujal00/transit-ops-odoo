@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from decimal import Decimal
 from .models import Vehicle, Driver, Trip, MaintenanceLog, FuelLog, Expense, AuditLog
 
@@ -383,12 +383,12 @@ class TripDeleteView(LoginRequiredMixin, FleetManagerRequiredMixin, DeleteView):
 # Dispatch State Machine Endpoints
 @login_required
 def trip_dispatch_view(request, pk):
-    trip = get_object_or_404(Trip, pk=pk)
-    
-    if not (request.user.is_superuser or request.user.groups.filter(name='Fleet Manager').exists()):
-        raise PermissionDenied("Only Fleet Managers can dispatch trips.")
-        
     try:
+        trip = get_object_or_404(Trip, pk=pk)
+        
+        if not (request.user.is_superuser or request.user.groups.filter(name='Fleet Manager').exists()):
+            raise PermissionDenied("Only Fleet Managers can dispatch trips.")
+            
         with transaction.atomic():
             trip = Trip.objects.select_for_update().get(pk=pk)
             vehicle = Vehicle.objects.select_for_update().get(pk=trip.vehicle.pk)
@@ -419,6 +419,10 @@ def trip_dispatch_view(request, pk):
                 details=f"Trip dispatched. Vehicle: {vehicle.registration_number}, Driver: {driver.name}"
             )
             messages.success(request, f"Trip {trip.id} dispatched successfully!")
+    except Http404 as e:
+        raise e
+    except PermissionDenied as e:
+        raise e
     except ValidationError as e:
         err_msg = e.message_dict if hasattr(e, 'message_dict') else str(e)
         messages.error(request, f"Dispatch failed: {err_msg}")
@@ -429,15 +433,15 @@ def trip_dispatch_view(request, pk):
 
 @login_required
 def trip_complete_view(request, pk):
-    trip = get_object_or_404(Trip, pk=pk)
-    
-    is_manager = request.user.is_superuser or request.user.groups.filter(name='Fleet Manager').exists()
-    is_driver = hasattr(request.user, 'driver_profile') and request.user.driver_profile == trip.driver
-    
-    if not (is_manager or is_driver):
-        raise PermissionDenied("You do not have permission to complete this trip.")
-        
     try:
+        trip = get_object_or_404(Trip, pk=pk)
+        
+        is_manager = request.user.is_superuser or request.user.groups.filter(name='Fleet Manager').exists()
+        is_driver = hasattr(request.user, 'driver_profile') and request.user.driver_profile == trip.driver
+        
+        if not (is_manager or is_driver):
+            raise PermissionDenied("You do not have permission to complete this trip.")
+            
         with transaction.atomic():
             trip = Trip.objects.select_for_update().get(pk=pk)
             vehicle = Vehicle.objects.select_for_update().get(pk=trip.vehicle.pk)
@@ -468,6 +472,13 @@ def trip_complete_view(request, pk):
                 details=f"Trip completed."
             )
             messages.success(request, f"Trip {trip.id} completed successfully!")
+    except Http404 as e:
+        raise e
+    except PermissionDenied as e:
+        raise e
+    except ValidationError as e:
+        err_msg = e.message_dict if hasattr(e, 'message_dict') else str(e)
+        messages.error(request, f"Completion failed: {err_msg}")
     except Exception as e:
         messages.error(request, f"Completion failed: {str(e)}")
         
@@ -475,12 +486,12 @@ def trip_complete_view(request, pk):
 
 @login_required
 def trip_cancel_view(request, pk):
-    trip = get_object_or_404(Trip, pk=pk)
-    
-    if not (request.user.is_superuser or request.user.groups.filter(name='Fleet Manager').exists()):
-        raise PermissionDenied("Only Fleet Managers can cancel trips.")
-        
     try:
+        trip = get_object_or_404(Trip, pk=pk)
+        
+        if not (request.user.is_superuser or request.user.groups.filter(name='Fleet Manager').exists()):
+            raise PermissionDenied("Only Fleet Managers can cancel trips.")
+            
         with transaction.atomic():
             trip = Trip.objects.select_for_update().get(pk=pk)
             vehicle = Vehicle.objects.select_for_update().get(pk=trip.vehicle.pk)
@@ -511,6 +522,13 @@ def trip_cancel_view(request, pk):
                 details=f"Trip cancelled."
             )
             messages.success(request, f"Trip {trip.id} has been cancelled.")
+    except Http404 as e:
+        raise e
+    except PermissionDenied as e:
+        raise e
+    except ValidationError as e:
+        err_msg = e.message_dict if hasattr(e, 'message_dict') else str(e)
+        messages.error(request, f"Cancellation failed: {err_msg}")
     except Exception as e:
         messages.error(request, f"Cancellation failed: {str(e)}")
         

@@ -20,8 +20,12 @@
         <span class="status-step {% if driver.status == 'Suspended' %}active{% endif %}">Suspended</span>
     </div>
     <div>
-        <a href="{% url 'driver_update' driver.pk %}" class="btn btn-primary">Edit Driver</a>
-        <a href="{% url 'driver_delete' driver.pk %}" class="btn btn-danger" style="margin-left: 8px;">Delete</a>
+        {% if perms.core.change_driver %}
+            <a href="{% url 'driver_update' driver.pk %}" class="btn btn-primary">Edit Driver</a>
+        {% endif %}
+        {% if perms.core.delete_driver %}
+            <a href="{% url 'driver_delete' driver.pk %}" class="btn btn-danger" style="margin-left: 8px;">Delete</a>
+        {% endif %}
     </div>
 </div>
 

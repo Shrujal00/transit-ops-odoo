@@ -10,8 +10,12 @@
 <div class="page-header">
     <h1>TransitOps Dashboard</h1>
     <div>
-        <a href="{% url 'vehicle_create' %}" class="btn btn-primary" style="margin-right: 8px;">+ New Vehicle</a>
-        <a href="{% url 'driver_create' %}" class="btn btn-secondary">+ Register Driver</a>
+        {% if perms.core.add_vehicle %}
+            <a href="{% url 'vehicle_create' %}" class="btn btn-primary" style="margin-right: 8px;">+ New Vehicle</a>
+        {% endif %}
+        {% if perms.core.add_driver %}
+            <a href="{% url 'driver_create' %}" class="btn btn-secondary">+ Register Driver</a>
+        {% endif %}
     </div>
 </div>
 

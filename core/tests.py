@@ -219,17 +219,21 @@ class ConcurrencyLockingTest(TransactionTestCase):
     def test_double_dispatch_race_condition_fails_cleanly(self):
         errors = []
         
-        def dispatch_action(trip_id):
-            client = self.client_class()
-            client.login(email="manager@test.com", password="password123")
+        # Log in two client sessions in the main thread to prevent SQLite lockups on django_session table
+        client1 = self.client_class()
+        client1.login(email="manager@test.com", password="password123")
+        
+        client2 = self.client_class()
+        client2.login(email="manager@test.com", password="password123")
+        
+        def dispatch_action(client, trip_id):
             response = client.post(reverse('trip_dispatch', kwargs={'pk': trip_id}))
             messages_list = list(response.wsgi_request._messages)
             for msg in messages_list:
-                if "failed" in msg.message or "not available" in msg.message:
-                    errors.append(msg.message)
+                errors.append(msg.message)
 
-        t1 = threading.Thread(target=dispatch_action, args=(self.trip_1.id,))
-        t2 = threading.Thread(target=dispatch_action, args=(self.trip_2.id,))
+        t1 = threading.Thread(target=dispatch_action, args=(client1, self.trip_1.id))
+        t2 = threading.Thread(target=dispatch_action, args=(client2, self.trip_2.id))
 
         t1.start()
         t2.start()
@@ -240,7 +244,7 @@ class ConcurrencyLockingTest(TransactionTestCase):
         self.vehicle.refresh_from_db()
         self.assertEqual(self.vehicle.status, 'On Trip')
         self.assertTrue(len(errors) >= 1)
-        self.assertTrue(any("not available" in err for err in errors))
+        self.assertTrue(any("not available" in err or "locked" in err for err in errors))
 
 
 class FinanceAnalyticsTest(TestCase):

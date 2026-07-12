@@ -20,8 +20,12 @@
         <span class="status-step {% if vehicle.status == 'Retired' %}active{% endif %}">Retired</span>
     </div>
     <div>
-        <a href="{% url 'vehicle_update' vehicle.pk %}" class="btn btn-primary">Edit Vehicle</a>
-        <a href="{% url 'vehicle_delete' vehicle.pk %}" class="btn btn-danger" style="margin-left: 8px;">Delete</a>
+        {% if perms.core.change_vehicle %}
+            <a href="{% url 'vehicle_update' vehicle.pk %}" class="btn btn-primary">Edit Vehicle</a>
+        {% endif %}
+        {% if perms.core.delete_vehicle %}
+            <a href="{% url 'vehicle_delete' vehicle.pk %}" class="btn btn-danger" style="margin-left: 8px;">Delete</a>
+        {% endif %}
     </div>
 </div>
 
