@@ -196,7 +196,7 @@
                         <td>{{ log.date }}</td>
                         <td>{{ log.liters }} L</td>
                         <td>${{ log.cost }}</td>
-                        <td>${{ log.cost|default:0|dictsort:"" }} (Calculated on the fly)</td>
+                        <td>${{ log.price_per_liter|floatformat:2 }}/L</td>
                     </tr>
                 {% empty %}
                     <tr>

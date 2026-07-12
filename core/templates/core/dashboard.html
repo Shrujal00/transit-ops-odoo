@@ -54,6 +54,95 @@
     </div>
 </div>
 
+<!-- Charts Section -->
+<div class="dashboard-grid" style="grid-template-columns: 2fr 1fr; gap: 24px; margin-top: 32px; margin-bottom: 32px;">
+    <div class="detail-card" style="padding: 24px; background: var(--card-bg); border-radius: 8px;">
+        <h3 style="margin-top: 0; margin-bottom: 16px;">Vehicle Fuel Efficiency (km/L)</h3>
+        <div style="height: 280px; position: relative;">
+            <canvas id="fuelEfficiencyChart"></canvas>
+        </div>
+    </div>
+    <div class="detail-card" style="padding: 24px; background: var(--card-bg); border-radius: 8px;">
+        <h3 style="margin-top: 0; margin-bottom: 16px;">Operational Cost Breakdown</h3>
+        <div style="height: 280px; position: relative;">
+            <canvas id="costBreakdownChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const efficiencyLabels = [{% for item in efficiency_data %}"{{ item.reg }}"{% if not forloop.last %}, {% endif %}{% endfor %}];
+        const efficiencyValues = [{% for item in efficiency_data %}{{ item.efficiency }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+        
+        const costLabels = ["Fuel", "Maintenance", "Expenses"];
+        const costValues = [{{ cost_breakdown.Fuel }}, {{ cost_breakdown.Maintenance }}, {{ cost_breakdown.Expenses }}];
+
+        // Fuel Efficiency Chart (Bar Chart)
+        const ctxEff = document.getElementById('fuelEfficiencyChart').getContext('2d');
+        new Chart(ctxEff, {
+            type: 'bar',
+            data: {
+                labels: efficiencyLabels,
+                datasets: [{
+                    label: 'Fuel Efficiency (km/L)',
+                    data: efficiencyValues,
+                    backgroundColor: 'rgba(79, 70, 229, 0.75)',
+                    borderColor: 'rgb(79, 70, 229)',
+                    borderWidth: 1.5,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0,0,0,0.05)' }
+                    },
+                    x: {
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+
+        // Cost Breakdown Chart (Doughnut Chart)
+        const ctxCost = document.getElementById('costBreakdownChart').getContext('2d');
+        new Chart(ctxCost, {
+            type: 'doughnut',
+            data: {
+                labels: costLabels,
+                datasets: [{
+                    data: costValues,
+                    backgroundColor: [
+                        'rgba(245, 158, 11, 0.8)',  // Fuel / Orange
+                        'rgba(239, 68, 68, 0.8)',   // Maintenance / Red
+                        'rgba(16, 185, 129, 0.8)'   // Expenses / Green
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 12, padding: 16 }
+                    }
+                }
+            }
+        });
+    });
+</script>
+
+
 <!-- Recent Audit Logs (Odoo Chatter Feed) -->
 <div class="chatter-box">
     <h3>System Chatter Feed (Audit Log)</h3>

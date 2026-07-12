@@ -18,20 +18,44 @@
 
 <!-- Search & Filters Bar (Odoo Style) -->
 <div class="filters-bar">
-    <form method="get" action="" class="search-box">
-        <i>🔍</i>
-        <input type="text" name="q" placeholder="Search registration number, make, model..." value="{{ search_query }}">
+    <form method="get" action="" class="search-form">
+        <input type="text" name="q" placeholder="Search vehicles..." value="{{ search_query }}">
+        <button type="submit" class="btn btn-primary">Search</button>
         {% if current_status %}
             <input type="hidden" name="status" value="{{ current_status }}">
         {% endif %}
+        {% if current_type %}
+            <input type="hidden" name="type" value="{{ current_type }}">
+        {% endif %}
+        {% if current_region %}
+            <input type="hidden" name="region" value="{{ current_region }}">
+        {% endif %}
     </form>
     
-    <div class="filter-chips">
-        <span style="align-self: center; font-weight: 600; color: var(--text-muted); margin-right: 8px;">Filter:</span>
-        <a href="?q={{ search_query }}" class="chip {% if not current_status %}active{% endif %}">All</a>
-        {% for code, label in status_choices %}
-            <a href="?q={{ search_query }}&status={{ code }}" class="chip {% if current_status == code %}active{% endif %}">{{ label }}</a>
-        {% endfor %}
+    <div class="filter-chips" style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span style="font-weight: 600; color: var(--text-muted); width: 80px; font-size: 12px; text-transform: uppercase;">Status:</span>
+            <a href="?q={{ search_query }}&type={{ current_type }}&region={{ current_region }}" class="chip {% if not current_status %}active{% endif %}">All</a>
+            {% for code, label in status_choices %}
+                <a href="?q={{ search_query }}&status={{ code }}&type={{ current_type }}&region={{ current_region }}" class="chip {% if current_status == code %}active{% endif %}">{{ label }}</a>
+            {% endfor %}
+        </div>
+        
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span style="font-weight: 600; color: var(--text-muted); width: 80px; font-size: 12px; text-transform: uppercase;">Type:</span>
+            <a href="?q={{ search_query }}&status={{ current_status }}&region={{ current_region }}" class="chip {% if not current_type %}active{% endif %}">All</a>
+            {% for code, label in type_choices %}
+                <a href="?q={{ search_query }}&status={{ current_status }}&type={{ code }}&region={{ current_region }}" class="chip {% if current_type == code %}active{% endif %}">{{ label }}</a>
+            {% endfor %}
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span style="font-weight: 600; color: var(--text-muted); width: 80px; font-size: 12px; text-transform: uppercase;">Region:</span>
+            <a href="?q={{ search_query }}&status={{ current_status }}&type={{ current_type }}" class="chip {% if not current_region %}active{% endif %}">All</a>
+            {% for code, label in region_choices %}
+                <a href="?q={{ search_query }}&status={{ current_status }}&type={{ current_type }}&region={{ code }}" class="chip {% if current_region == code %}active{% endif %}">{{ label }}</a>
+            {% endfor %}
+        </div>
     </div>
 </div>
 
