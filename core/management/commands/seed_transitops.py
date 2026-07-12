@@ -31,6 +31,68 @@ class Command(BaseCommand):
             role = Role.objects.create(name=r_info['name'], code=r_info['code'])
             roles[r_info['code']] = role
 
+        from django.contrib.auth.models import Group, Permission
+        from django.contrib.contenttypes.models import ContentType
+
+        self.stdout.write('Creating Groups and Permissions...')
+        group_permissions = {
+            'fleet_manager': {
+                'vehicle': ['add', 'change', 'delete', 'view'],
+                'driver': ['add', 'change', 'delete', 'view'],
+                'trip': ['add', 'change', 'delete', 'view'],
+                'maintenancelog': ['view'],
+                'fuellog': ['view'],
+                'expense': ['view'],
+            },
+            'driver': {
+                'trip': ['change', 'view'],
+                'vehicle': ['view'],
+                'driver': ['view'],
+            },
+            'safety_officer': {
+                'maintenancelog': ['add', 'change', 'delete', 'view'],
+                'vehicle': ['view'],
+                'driver': ['view'],
+                'trip': ['view'],
+            },
+            'financial_analyst': {
+                'fuellog': ['add', 'change', 'delete', 'view'],
+                'expense': ['add', 'change', 'delete', 'view'],
+                'vehicle': ['view'],
+                'driver': ['view'],
+                'trip': ['view'],
+                'maintenancelog': ['view'],
+            }
+        }
+
+        model_classes = {
+            'vehicle': Vehicle,
+            'driver': Driver,
+            'trip': Trip,
+            'maintenancelog': MaintenanceLog,
+            'fuellog': FuelLog,
+            'expense': Expense
+        }
+
+        for role_code, specs in group_permissions.items():
+            role_name = next(r['name'] for r in roles_data if r['code'] == role_code)
+            group, created = Group.objects.get_or_create(name=role_name)
+            
+            perms_to_add = []
+            for model_name, actions in specs.items():
+                model_class = model_classes[model_name]
+                ct = ContentType.objects.get_for_model(model_class)
+                for action in actions:
+                    codename = f"{action}_{model_name}"
+                    try:
+                        perm = Permission.objects.get(content_type=ct, codename=codename)
+                        perms_to_add.append(perm)
+                    except Permission.DoesNotExist:
+                        pass
+            
+            group.permissions.set(perms_to_add)
+            self.stdout.write(f"Configured group {group.name} with {len(perms_to_add)} permissions.")
+
         self.stdout.write('Creating Staff Users...')
         password = 'password123'
         
@@ -55,6 +117,11 @@ class Command(BaseCommand):
             last_name='Finance',
             role=roles['financial_analyst']
         )
+
+        # Assign staff users to their groups
+        Group.objects.get(name='Fleet Manager').user_set.add(manager_user)
+        Group.objects.get(name='Safety Officer').user_set.add(safety_user)
+        Group.objects.get(name='Financial Analyst').user_set.add(finance_user)
 
         self.stdout.write('Creating Vehicles...')
         vehicles_data = [
@@ -99,6 +166,7 @@ class Command(BaseCommand):
 
         drivers = []
         today = timezone.now().date()
+        driver_group = Group.objects.get(name='Driver')
         for idx, d in enumerate(drivers_data):
             d_user = User.objects.create_user(
                 email=d['email'],
@@ -107,7 +175,9 @@ class Command(BaseCommand):
                 last_name=d['name'].split()[1] if len(d['name'].split()) > 1 else '',
                 role=roles['driver']
             )
+            driver_group.user_set.add(d_user)
             driver = Driver.objects.create(
+
                 user=d_user,
                 name=d['name'],
                 license_number=d['license'],

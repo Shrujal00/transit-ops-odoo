@@ -3,9 +3,41 @@ from django.urls import reverse_lazy
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView, TemplateView
 from django.db.models import Count, Q
 from django.utils import timezone
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from .models import Vehicle, Driver, Trip, MaintenanceLog, FuelLog, Expense, AuditLog
 
-# Dashboard View
+# Custom Mixins for RBAC View Guarding
+class FleetManagerRequiredMixin(UserPassesTestMixin):
+    def test_func(self):
+        if not self.request.user.is_authenticated:
+            return False
+        return self.request.user.is_superuser or self.request.user.groups.filter(name='Fleet Manager').exists()
+
+class StaffOnlyRequiredMixin(UserPassesTestMixin):
+    """Allows Fleet Manager, Safety Officer, Financial Analyst (not Drivers)"""
+    def test_func(self):
+        if not self.request.user.is_authenticated:
+            return False
+        return (self.request.user.is_superuser or 
+                self.request.user.groups.filter(name__in=['Fleet Manager', 'Safety Officer', 'Financial Analyst']).exists())
+
+class DriverSelfOrStaffRequiredMixin(UserPassesTestMixin):
+    """Allows Driver to view their own profile, staff to view any"""
+    def test_func(self):
+        if not self.request.user.is_authenticated:
+            return False
+        user = self.request.user
+        if user.is_superuser or user.groups.filter(name__in=['Fleet Manager', 'Safety Officer', 'Financial Analyst']).exists():
+            return True
+        if user.groups.filter(name='Driver').exists():
+            driver_obj = self.get_object()
+            return hasattr(user, 'driver_profile') and user.driver_profile.pk == driver_obj.pk
+        return False
+
+# Dashboard View (Accessible to all logged-in roles)
+@login_required
 def dashboard_view(request):
     total_vehicles = Vehicle.objects.count()
     available_vehicles = Vehicle.objects.filter(status='Available').count()
@@ -18,8 +50,13 @@ def dashboard_view(request):
     
     active_trips = Trip.objects.filter(status='Ongoing').count()
     
-    # Audit logs for the chatter feed
-    recent_logs = AuditLog.objects.all()[:10]
+    # Audit logs for the chatter feed (only show if staff)
+    is_staff = request.user.is_superuser or request.user.groups.filter(name__in=['Fleet Manager', 'Safety Officer', 'Financial Analyst']).exists()
+    
+    if is_staff:
+        recent_logs = AuditLog.objects.all()[:10]
+    else:
+        recent_logs = AuditLog.objects.none()
 
     context = {
         'total_vehicles': total_vehicles,
@@ -31,11 +68,12 @@ def dashboard_view(request):
         'on_trip_drivers': on_trip_drivers,
         'active_trips': active_trips,
         'recent_logs': recent_logs,
+        'is_staff': is_staff,
     }
     return render(request, 'core/dashboard.html', context)
 
 # Vehicle Views
-class VehicleListView(ListView):
+class VehicleListView(LoginRequiredMixin, StaffOnlyRequiredMixin, ListView):
     model = Vehicle
     template_name = 'core/vehicle_list.html'
     context_object_name = 'vehicles'
@@ -62,7 +100,7 @@ class VehicleListView(ListView):
         context['search_query'] = self.request.GET.get('q', '')
         return context
 
-class VehicleDetailView(DetailView):
+class VehicleDetailView(LoginRequiredMixin, StaffOnlyRequiredMixin, DetailView):
     model = Vehicle
     template_name = 'core/vehicle_detail.html'
     context_object_name = 'vehicle'
@@ -85,7 +123,7 @@ class VehicleDetailView(DetailView):
         context['trips'] = vehicle.trips.all().order_by('-scheduled_date')
         return context
 
-class VehicleCreateView(CreateView):
+class VehicleCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateView):
     model = Vehicle
     fields = ['registration_number', 'make', 'model', 'year', 'capacity_kg', 'acquisition_cost', 'status']
     template_name = 'core/vehicle_form.html'
@@ -93,11 +131,10 @@ class VehicleCreateView(CreateView):
 
     def form_valid(self, form):
         response = super().form_valid(form)
-        # Create an audit log entry
         from django.contrib.contenttypes.models import ContentType
         ct = ContentType.objects.get_for_model(self.object)
         AuditLog.objects.create(
-            user=self.request.user if self.request.user.is_authenticated else None,
+            user=self.request.user,
             content_type=ct,
             object_id=self.object.id,
             action='Created',
@@ -106,7 +143,7 @@ class VehicleCreateView(CreateView):
         )
         return response
 
-class VehicleUpdateView(UpdateView):
+class VehicleUpdateView(LoginRequiredMixin, FleetManagerRequiredMixin, UpdateView):
     model = Vehicle
     fields = ['registration_number', 'make', 'model', 'year', 'capacity_kg', 'acquisition_cost', 'status']
     template_name = 'core/vehicle_form.html'
@@ -115,16 +152,14 @@ class VehicleUpdateView(UpdateView):
         return reverse_lazy('vehicle_detail', kwargs={'pk': self.object.pk})
 
     def form_valid(self, form):
-        # Fetch original object before save
         original = Vehicle.objects.get(pk=self.object.pk)
         response = super().form_valid(form)
         
-        # Log status change if status modified
         if original.status != self.object.status:
             from django.contrib.contenttypes.models import ContentType
             ct = ContentType.objects.get_for_model(self.object)
             AuditLog.objects.create(
-                user=self.request.user if self.request.user.is_authenticated else None,
+                user=self.request.user,
                 content_type=ct,
                 object_id=self.object.id,
                 action='Status Change',
@@ -134,14 +169,14 @@ class VehicleUpdateView(UpdateView):
             )
         return response
 
-class VehicleDeleteView(DeleteView):
+class VehicleDeleteView(LoginRequiredMixin, FleetManagerRequiredMixin, DeleteView):
     model = Vehicle
     template_name = 'core/vehicle_confirm_delete.html'
     success_url = reverse_lazy('vehicle_list')
 
 
 # Driver Views
-class DriverListView(ListView):
+class DriverListView(LoginRequiredMixin, StaffOnlyRequiredMixin, ListView):
     model = Driver
     template_name = 'core/driver_list.html'
     context_object_name = 'drivers'
@@ -167,7 +202,7 @@ class DriverListView(ListView):
         context['search_query'] = self.request.GET.get('q', '')
         return context
 
-class DriverDetailView(DetailView):
+class DriverDetailView(LoginRequiredMixin, DriverSelfOrStaffRequiredMixin, DetailView):
     model = Driver
     template_name = 'core/driver_detail.html'
     context_object_name = 'driver'
@@ -186,7 +221,7 @@ class DriverDetailView(DetailView):
         context['trips'] = driver.trips.all().order_by('-scheduled_date')
         return context
 
-class DriverCreateView(CreateView):
+class DriverCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateView):
     model = Driver
     fields = ['name', 'license_number', 'license_expiry', 'status', 'user']
     template_name = 'core/driver_form.html'
@@ -197,7 +232,7 @@ class DriverCreateView(CreateView):
         from django.contrib.contenttypes.models import ContentType
         ct = ContentType.objects.get_for_model(self.object)
         AuditLog.objects.create(
-            user=self.request.user if self.request.user.is_authenticated else None,
+            user=self.request.user,
             content_type=ct,
             object_id=self.object.id,
             action='Created',
@@ -206,7 +241,7 @@ class DriverCreateView(CreateView):
         )
         return response
 
-class DriverUpdateView(UpdateView):
+class DriverUpdateView(LoginRequiredMixin, FleetManagerRequiredMixin, UpdateView):
     model = Driver
     fields = ['name', 'license_number', 'license_expiry', 'status', 'user']
     template_name = 'core/driver_form.html'
@@ -222,7 +257,7 @@ class DriverUpdateView(UpdateView):
             from django.contrib.contenttypes.models import ContentType
             ct = ContentType.objects.get_for_model(self.object)
             AuditLog.objects.create(
-                user=self.request.user if self.request.user.is_authenticated else None,
+                user=self.request.user,
                 content_type=ct,
                 object_id=self.object.id,
                 action='Status Change',
@@ -232,7 +267,7 @@ class DriverUpdateView(UpdateView):
             )
         return response
 
-class DriverDeleteView(DeleteView):
+class DriverDeleteView(LoginRequiredMixin, FleetManagerRequiredMixin, DeleteView):
     model = Driver
     template_name = 'core/driver_confirm_delete.html'
     success_url = reverse_lazy('driver_list')
