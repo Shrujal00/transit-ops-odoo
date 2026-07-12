@@ -52,6 +52,7 @@ class Vehicle(models.Model):
         ('Truck', 'Truck'),
         ('Van', 'Van'),
         ('Sedan', 'Sedan'),
+        ('Trailer', 'Trailer'),
         ('Other', 'Other'),
     ]
     REGION_CHOICES = [

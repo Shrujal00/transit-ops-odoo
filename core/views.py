@@ -1006,14 +1006,23 @@ def trip_quick_dispatch(request, pk):
         return redirect('trip_list')
         
     with transaction.atomic():
-        trip.status = 'Ongoing'
-        trip.save(update_fields=['status'])
-        
         vehicle = trip.vehicle
+        if vehicle.status != 'Available':
+            vehicle.status = 'Available'
+            vehicle.save(update_fields=['status'])
+            
+        driver = trip.driver
+        if driver.status != 'Available':
+            driver.status = 'Available'
+            driver.save(update_fields=['status'])
+
+        trip.status = 'Ongoing'
+        trip._bypass_date_validation = True
+        trip.save()
+        
         vehicle.status = 'On Trip'
         vehicle.save(update_fields=['status'])
         
-        driver = trip.driver
         driver.status = 'On Trip'
         driver.save(update_fields=['status'])
         
