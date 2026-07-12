@@ -77,6 +77,8 @@ class Vehicle(models.Model):
             raise ValidationError({'capacity_kg': 'Capacity must be greater than 0.'})
         if self.acquisition_cost is not None and self.acquisition_cost <= 0:
             raise ValidationError({'acquisition_cost': 'Acquisition cost must be greater than 0.'})
+        if self.odometer is not None and self.odometer < 0:
+            raise ValidationError({'odometer': 'Odometer cannot be negative.'})
 
     def save(self, *args, **kwargs):
         if self.registration_number:
@@ -109,7 +111,8 @@ class Driver(models.Model):
 
     def clean(self):
         super().clean()
-        # Add any necessary license format validations or sanity checks here
+        if self.safety_score is not None and (self.safety_score < 0 or self.safety_score > 100):
+            raise ValidationError({'safety_score': 'Safety score must be between 0 and 100.'})
         
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -146,6 +149,8 @@ class Trip(models.Model):
             raise ValidationError({'revenue': 'Revenue cannot be negative.'})
         if self.planned_distance is not None and self.planned_distance < 0:
             raise ValidationError({'planned_distance': 'Planned distance cannot be negative.'})
+        if self.scheduled_date and self.scheduled_date < timezone.now().date() and (self.pk is None or self.status == 'Draft'):
+            raise ValidationError({'scheduled_date': 'Scheduled date cannot be in the past.'})
             
         if self.vehicle and self.cargo_weight and self.cargo_weight > self.vehicle.capacity_kg:
             raise ValidationError({'cargo_weight': f"Cargo weight ({self.cargo_weight} kg) exceeds vehicle capacity ({self.vehicle.capacity_kg} kg)."})
@@ -203,6 +208,8 @@ class MaintenanceLog(models.Model):
             raise ValidationError({'cost': 'Cost cannot be negative.'})
         if self.start_date and self.end_date and self.end_date < self.start_date:
             raise ValidationError({'end_date': 'End date cannot be before start date.'})
+        if self.status == 'Scheduled' and self.start_date and self.start_date < timezone.now().date():
+            raise ValidationError({'start_date': 'Scheduled start date cannot be in the past.'})
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
@@ -269,6 +276,8 @@ class FuelLog(models.Model):
             raise ValidationError({'liters': 'Liters must be greater than 0.'})
         if self.cost is not None and self.cost <= 0:
             raise ValidationError({'cost': 'Cost must be greater than 0.'})
+        if self.date and self.date > timezone.now().date():
+            raise ValidationError({'date': 'Fuel log date cannot be in the future.'})
 
     @property
     def price_per_liter(self):
@@ -300,6 +309,8 @@ class Expense(models.Model):
         super().clean()
         if self.amount is not None and self.amount <= 0:
             raise ValidationError({'amount': 'Amount must be greater than 0.'})
+        if self.date and self.date > timezone.now().date():
+            raise ValidationError({'date': 'Expense date cannot be in the future.'})
 
     def save(self, *args, **kwargs):
         self.full_clean()

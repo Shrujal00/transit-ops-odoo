@@ -344,3 +344,62 @@ class FinanceAnalyticsTest(TestCase):
         self.client.login(email="analyst@test.com", password="password123")
         response = self.client.get(reverse('dashboard'))
         self.assertEqual(response.status_code, 200)
+
+class ValidationConstraintsTest(TestCase):
+    def setUp(self):
+        self.vehicle = Vehicle.objects.create(
+            registration_number="VAL-999-X", make="Test", model="Val", year=2020,
+            capacity_kg=1000, odometer=100, acquisition_cost=10000.00, status="Available"
+        )
+        self.driver_user = User.objects.create_user(email="valdriver@test.com", password="password123")
+        self.driver = Driver.objects.create(
+            user=self.driver_user, name="Val Driver", license_number="DL-VAL", license_expiry=timezone.now().date() + datetime.timedelta(days=365)
+        )
+
+    def test_past_date_trip_scheduled_raises_error(self):
+        past_date = timezone.now().date() - datetime.timedelta(days=5)
+        trip = Trip(
+            source="A", destination="B", vehicle=self.vehicle, driver=self.driver,
+            cargo_weight=500, scheduled_date=past_date, status="Draft"
+        )
+        with self.assertRaises(ValidationError):
+            trip.full_clean()
+
+    def test_negative_odometer_raises_error(self):
+        self.vehicle.odometer = -10
+        with self.assertRaises(ValidationError):
+            self.vehicle.full_clean()
+
+    def test_driver_safety_score_validation(self):
+        self.driver.safety_score = 150
+        with self.assertRaises(ValidationError):
+            self.driver.full_clean()
+        
+        self.driver.safety_score = -5
+        with self.assertRaises(ValidationError):
+            self.driver.full_clean()
+
+    def test_scheduled_maintenance_past_date_raises_error(self):
+        past_date = timezone.now().date() - datetime.timedelta(days=5)
+        log = MaintenanceLog(
+            vehicle=self.vehicle, description="Repair", cost=100.00,
+            start_date=past_date, status="Scheduled"
+        )
+        with self.assertRaises(ValidationError):
+            log.full_clean()
+
+    def test_fuel_log_future_date_raises_error(self):
+        future_date = timezone.now().date() + datetime.timedelta(days=5)
+        log = FuelLog(
+            vehicle=self.vehicle, liters=20.00, cost=50.00, date=future_date
+        )
+        with self.assertRaises(ValidationError):
+            log.full_clean()
+
+    def test_expense_future_date_raises_error(self):
+        future_date = timezone.now().date() + datetime.timedelta(days=5)
+        expense = Expense(
+            vehicle=self.vehicle, amount=50.00, category="Tolls", date=future_date
+        )
+        with self.assertRaises(ValidationError):
+            expense.full_clean()
