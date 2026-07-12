@@ -193,11 +193,11 @@ class Command(BaseCommand):
 
         self.stdout.write('Creating sample Trips...')
         trips_data = [
-            {'src': 'Chicago, IL', 'dest': 'Dallas, TX', 'vehicle': vehicles[2], 'driver': drivers[2], 'cargo': 12000, 'rev': 3200.00, 'status': 'Ongoing', 'sched': today, 'dist': 950},
-            {'src': 'Las Vegas, NV', 'dest': 'San Francisco, CA', 'vehicle': vehicles[6], 'driver': drivers[5], 'cargo': 15000, 'rev': 4500.00, 'status': 'Ongoing', 'sched': today, 'dist': 570},
-            {'src': 'Houston, TX', 'dest': 'New Orleans, LA', 'vehicle': vehicles[0], 'driver': drivers[0], 'cargo': 2800, 'rev': 1200.00, 'status': 'Completed', 'sched': today - datetime.timedelta(days=3), 'end': timezone.now() - datetime.timedelta(days=2), 'dist': 350, 'end_odo': 15350, 'fuel': 130},
-            {'src': 'New York, NY', 'dest': 'Boston, MA', 'vehicle': vehicles[1], 'driver': drivers[1], 'cargo': 2000, 'rev': 900.00, 'status': 'Completed', 'sched': today - datetime.timedelta(days=5), 'end': timezone.now() - datetime.timedelta(days=4), 'dist': 215, 'end_odo': 8215, 'fuel': 85},
-            {'src': 'Seattle, WA', 'dest': 'Portland, OR', 'vehicle': vehicles[4], 'driver': drivers[4], 'cargo': 1000, 'rev': 500.00, 'status': 'Draft', 'sched': today + datetime.timedelta(days=2), 'dist': 180},
+            {'src': 'Chicago, IL', 'dest': 'Dallas, TX', 'vehicle': vehicles[2], 'driver': drivers[2], 'cargo': 12000, 'rev': 55000.00, 'status': 'Ongoing', 'sched': today, 'dist': 950},
+            {'src': 'Las Vegas, NV', 'dest': 'San Francisco, CA', 'vehicle': vehicles[6], 'driver': drivers[5], 'cargo': 15000, 'rev': 35000.00, 'status': 'Ongoing', 'sched': today, 'dist': 570},
+            {'src': 'Houston, TX', 'dest': 'New Orleans, LA', 'vehicle': vehicles[0], 'driver': drivers[0], 'cargo': 2800, 'rev': 18000.00, 'status': 'Completed', 'sched': today - datetime.timedelta(days=3), 'end': timezone.now() - datetime.timedelta(days=2), 'dist': 350, 'end_odo': 15350, 'fuel': 130},
+            {'src': 'New York, NY', 'dest': 'Boston, MA', 'vehicle': vehicles[1], 'driver': drivers[1], 'cargo': 2000, 'rev': 15000.00, 'status': 'Completed', 'sched': today - datetime.timedelta(days=5), 'end': timezone.now() - datetime.timedelta(days=4), 'dist': 215, 'end_odo': 8215, 'fuel': 85},
+            {'src': 'Seattle, WA', 'dest': 'Portland, OR', 'vehicle': vehicles[4], 'driver': drivers[4], 'cargo': 1000, 'rev': 8000.00, 'status': 'Draft', 'sched': today + datetime.timedelta(days=2), 'dist': 180},
         ]
 
         for t in trips_data:
@@ -229,10 +229,10 @@ class Command(BaseCommand):
         self.stdout.write('Creating sample Maintenance Logs...')
         # TX-9901-F (idx 5) is In Shop
         m_logs = [
-            {'v': vehicles[5], 'desc': 'Transmission fluid replacement and gear adjustments', 'cost': 1250.00, 'start': today - datetime.timedelta(days=1), 'status': 'In Progress'},
-            {'v': vehicles[0], 'desc': 'Routine oil change and multi-point inspection', 'cost': 150.00, 'start': today - datetime.timedelta(days=10), 'end': today - datetime.timedelta(days=10), 'status': 'Completed'},
-            {'v': vehicles[1], 'desc': 'Front brake pads and rotor replacement', 'cost': 450.00, 'start': today - datetime.timedelta(days=15), 'end': today - datetime.timedelta(days=14), 'status': 'Completed'},
-            {'v': vehicles[2], 'desc': 'Annual safety inspection and engine tuning', 'cost': 800.00, 'start': today - datetime.timedelta(days=30), 'end': today - datetime.timedelta(days=29), 'status': 'Completed'},
+            {'v': vehicles[5], 'desc': 'Transmission fluid replacement and gear adjustments', 'cost': 250.00, 'start': today - datetime.timedelta(days=1), 'status': 'In Progress'},
+            {'v': vehicles[0], 'desc': 'Routine oil change and multi-point inspection', 'cost': 50.00, 'start': today - datetime.timedelta(days=10), 'end': today - datetime.timedelta(days=10), 'status': 'Completed'},
+            {'v': vehicles[1], 'desc': 'Front brake pads and rotor replacement', 'cost': 120.00, 'start': today - datetime.timedelta(days=15), 'end': today - datetime.timedelta(days=14), 'status': 'Completed'},
+            {'v': vehicles[2], 'desc': 'Annual safety inspection and engine tuning', 'cost': 180.00, 'start': today - datetime.timedelta(days=30), 'end': today - datetime.timedelta(days=29), 'status': 'Completed'},
         ]
         for m in m_logs:
             log = MaintenanceLog(
@@ -266,10 +266,10 @@ class Command(BaseCommand):
 
         self.stdout.write('Creating sample Expenses...')
         expenses = [
-            {'v': vehicles[2], 'amount': 150.00, 'category': 'Tolls', 'desc': 'Cross-country tolls CA-TX route', 'date': today - datetime.timedelta(days=2)},
-            {'v': vehicles[6], 'amount': 75.00, 'category': 'Tolls', 'desc': 'State line turnpike toll', 'date': today - datetime.timedelta(days=1)},
-            {'v': vehicles[0], 'amount': 1200.00, 'category': 'Insurance', 'desc': 'Semi-annual liability insurance premium', 'date': today - datetime.timedelta(days=20)},
-            {'v': vehicles[1], 'amount': 250.00, 'category': 'Permits', 'desc': 'Oversize load state permit fee', 'date': today - datetime.timedelta(days=5)},
+            {'v': vehicles[2], 'amount': 30.00, 'category': 'Tolls', 'desc': 'Cross-country tolls CA-TX route', 'date': today - datetime.timedelta(days=2)},
+            {'v': vehicles[6], 'amount': 20.00, 'category': 'Tolls', 'desc': 'State line turnpike toll', 'date': today - datetime.timedelta(days=1)},
+            {'v': vehicles[0], 'amount': 120.00, 'category': 'Insurance', 'desc': 'Semi-annual liability insurance premium', 'date': today - datetime.timedelta(days=20)},
+            {'v': vehicles[1], 'amount': 50.00, 'category': 'Permits', 'desc': 'Oversize load state permit fee', 'date': today - datetime.timedelta(days=5)},
         ]
         for e in expenses:
             exp = Expense(
@@ -420,7 +420,7 @@ class Command(BaseCommand):
                 driver=drv,
                 cargo_weight=random.randint(500, max(2000, veh.capacity_kg)),
                 planned_distance=random.randint(50, 1500),
-                revenue=random.randint(200, 5000),
+                revenue=random.randint(15000, 75000),
                 status=status,
                 scheduled_date=sched,
                 end_time=end_t,
@@ -455,7 +455,7 @@ class Command(BaseCommand):
             bulk_maintenance.append(MaintenanceLog(
                 vehicle=veh,
                 description=random.choice(maintenance_descs),
-                cost=random.randint(50, 3000),
+                cost=random.randint(50, 800),
                 start_date=start,
                 end_date=end,
                 status=status
@@ -492,7 +492,7 @@ class Command(BaseCommand):
             cat = random.choice(categories)
             bulk_expenses.append(Expense(
                 vehicle=veh,
-                amount=random.randint(10, 1500),
+                amount=random.randint(10, 300),
                 category=cat,
                 description=expense_descs[cat],
                 date=today - datetime.timedelta(days=random.randint(1, 180))
