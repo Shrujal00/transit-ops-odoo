@@ -123,6 +123,28 @@ class Trip(models.Model):
             raise ValidationError({'cargo_weight': 'Cargo weight must be greater than 0.'})
         if self.revenue is not None and self.revenue < 0:
             raise ValidationError({'revenue': 'Revenue cannot be negative.'})
+            
+        if self.vehicle and self.cargo_weight and self.cargo_weight > self.vehicle.capacity_kg:
+            raise ValidationError({'cargo_weight': f"Cargo weight ({self.cargo_weight} kg) exceeds vehicle capacity ({self.vehicle.capacity_kg} kg)."})
+            
+        is_new = self.pk is None
+        original_status = None
+        if not is_new:
+            try:
+                original = Trip.objects.get(pk=self.pk)
+                original_status = original.status
+            except Trip.DoesNotExist:
+                pass
+
+        if self.status == 'Ongoing' and (is_new or original_status in ['Draft', 'Cancelled']):
+            if self.driver:
+                if not self.driver.is_license_valid:
+                    raise ValidationError({'driver': f"Driver {self.driver.name} has an expired license."})
+                if self.driver.status != 'Available':
+                    raise ValidationError({'driver': f"Driver {self.driver.name} is not available (current status: {self.driver.status})."})
+            if self.vehicle:
+                if self.vehicle.status != 'Available':
+                    raise ValidationError({'vehicle': f"Vehicle {self.vehicle.registration_number} is not available (current status: {self.vehicle.status})."})
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -152,8 +174,54 @@ class MaintenanceLog(models.Model):
             raise ValidationError({'end_date': 'End date cannot be before start date.'})
 
     def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        original_status = None
+        if not is_new:
+            try:
+                original_status = MaintenanceLog.objects.get(pk=self.pk).status
+            except MaintenanceLog.DoesNotExist:
+                pass
+                
         self.full_clean()
         super().save(*args, **kwargs)
+        
+        # Enforce state transitions on vehicle
+        if self.status in ['In Progress', 'Scheduled']:
+            if self.vehicle.status != 'In Shop':
+                old_v_status = self.vehicle.status
+                self.vehicle.status = 'In Shop'
+                self.vehicle.save(update_fields=['status'])
+                
+                from django.contrib.contenttypes.models import ContentType
+                ct = ContentType.objects.get_for_model(self.vehicle)
+                AuditLog.objects.create(
+                    content_type=ct,
+                    object_id=self.vehicle.id,
+                    action='Status Change',
+                    old_status=old_v_status,
+                    new_status='In Shop',
+                    details=f"Vehicle status set to In Shop due to maintenance log."
+                )
+        elif self.status == 'Completed' and (is_new or original_status != 'Completed'):
+            # Revert to Available (unless assigned to ongoing trip)
+            has_ongoing_trip = self.vehicle.trips.filter(status='Ongoing').exists()
+            new_v_status = 'On Trip' if has_ongoing_trip else 'Available'
+            
+            if self.vehicle.status != new_v_status:
+                old_v_status = self.vehicle.status
+                self.vehicle.status = new_v_status
+                self.vehicle.save(update_fields=['status'])
+                
+                from django.contrib.contenttypes.models import ContentType
+                ct = ContentType.objects.get_for_model(self.vehicle)
+                AuditLog.objects.create(
+                    content_type=ct,
+                    object_id=self.vehicle.id,
+                    action='Status Change',
+                    old_status=old_v_status,
+                    new_status=new_v_status,
+                    details=f"Maintenance completed. Vehicle returned to {new_v_status}."
+                )
 
     def __str__(self):
         return f"Maintenance on {self.vehicle.registration_number} ({self.status})"

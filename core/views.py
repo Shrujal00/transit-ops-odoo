@@ -2,10 +2,12 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView, TemplateView
 from django.db.models import Count, Q
+from django.db import transaction
 from django.utils import timezone
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from .models import Vehicle, Driver, Trip, MaintenanceLog, FuelLog, Expense, AuditLog
 
 # Custom Mixins for RBAC View Guarding
@@ -23,6 +25,13 @@ class StaffOnlyRequiredMixin(UserPassesTestMixin):
         return (self.request.user.is_superuser or 
                 self.request.user.groups.filter(name__in=['Fleet Manager', 'Safety Officer', 'Financial Analyst']).exists())
 
+class SafetyOfficerRequiredMixin(UserPassesTestMixin):
+    def test_func(self):
+        if not self.request.user.is_authenticated:
+            return False
+        return (self.request.user.is_superuser or 
+                self.request.user.groups.filter(name__in=['Fleet Manager', 'Safety Officer']).exists())
+
 class DriverSelfOrStaffRequiredMixin(UserPassesTestMixin):
     """Allows Driver to view their own profile, staff to view any"""
     def test_func(self):
@@ -36,7 +45,8 @@ class DriverSelfOrStaffRequiredMixin(UserPassesTestMixin):
             return hasattr(user, 'driver_profile') and user.driver_profile.pk == driver_obj.pk
         return False
 
-# Dashboard View (Accessible to all logged-in roles)
+
+# Dashboard View
 @login_required
 def dashboard_view(request):
     total_vehicles = Vehicle.objects.count()
@@ -50,7 +60,7 @@ def dashboard_view(request):
     
     active_trips = Trip.objects.filter(status='Ongoing').count()
     
-    # Audit logs for the chatter feed (only show if staff)
+    # Audit logs for chatter (staff only)
     is_staff = request.user.is_superuser or request.user.groups.filter(name__in=['Fleet Manager', 'Safety Officer', 'Financial Analyst']).exists()
     
     if is_staff:
@@ -71,6 +81,7 @@ def dashboard_view(request):
         'is_staff': is_staff,
     }
     return render(request, 'core/dashboard.html', context)
+
 
 # Vehicle Views
 class VehicleListView(LoginRequiredMixin, StaffOnlyRequiredMixin, ListView):
@@ -109,7 +120,6 @@ class VehicleDetailView(LoginRequiredMixin, StaffOnlyRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         vehicle = self.get_object()
         
-        # Get content type for generic relation
         from django.contrib.contenttypes.models import ContentType
         vehicle_ct = ContentType.objects.get_for_model(Vehicle)
         
@@ -273,16 +283,266 @@ class DriverDeleteView(LoginRequiredMixin, FleetManagerRequiredMixin, DeleteView
     success_url = reverse_lazy('driver_list')
 
 
-# View mappings for routing shortcuts
-dashboard_view = dashboard_view
-vehicle_list_view = VehicleListView.as_view()
-vehicle_detail_view = VehicleDetailView.as_view()
-vehicle_create_view = VehicleCreateView.as_view()
-vehicle_update_view = VehicleUpdateView.as_view()
-vehicle_delete_view = VehicleDeleteView.as_view()
+# Trip Views
+class TripListView(LoginRequiredMixin, ListView):
+    model = Trip
+    template_name = 'core/trip_list.html'
+    context_object_name = 'trips'
 
-driver_list_view = DriverListView.as_view()
-driver_detail_view = DriverDetailView.as_view()
-driver_create_view = DriverCreateView.as_view()
-driver_update_view = DriverUpdateView.as_view()
-driver_delete_view = DriverDeleteView.as_view()
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        # If driver, only show their own trips
+        if user.groups.filter(name='Driver').exists() and hasattr(user, 'driver_profile'):
+            queryset = queryset.filter(driver=user.driver_profile)
+        elif user.groups.filter(name='Driver').exists():
+            queryset = queryset.none()
+            
+        status_filter = self.request.GET.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['status_choices'] = Trip.STATUS_CHOICES
+        context['current_status'] = self.request.GET.get('status', '')
+        return context
+
+class TripDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
+    model = Trip
+    template_name = 'core/trip_detail.html'
+    context_object_name = 'trip'
+
+    def test_func(self):
+        user = self.request.user
+        if user.is_superuser or user.groups.filter(name__in=['Fleet Manager', 'Safety Officer', 'Financial Analyst']).exists():
+            return True
+        if user.groups.filter(name='Driver').exists():
+            trip = self.get_object()
+            return hasattr(user, 'driver_profile') and user.driver_profile == trip.driver
+        return False
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        trip = self.get_object()
+        from django.contrib.contenttypes.models import ContentType
+        trip_ct = ContentType.objects.get_for_model(Trip)
+        
+        context['audit_logs'] = AuditLog.objects.filter(
+            content_type=trip_ct,
+            object_id=trip.id
+        )
+        return context
+
+class TripCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateView):
+    model = Trip
+    fields = ['source', 'destination', 'vehicle', 'driver', 'cargo_weight', 'revenue', 'scheduled_date']
+    template_name = 'core/trip_form.html'
+    success_url = reverse_lazy('trip_list')
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get_for_model(self.object)
+        AuditLog.objects.create(
+            user=self.request.user,
+            content_type=ct,
+            object_id=self.object.id,
+            action='Created',
+            new_status=self.object.status,
+            details=f"Trip from {self.object.source} to {self.object.destination} scheduled."
+        )
+        return response
+
+class TripUpdateView(LoginRequiredMixin, FleetManagerRequiredMixin, UpdateView):
+    model = Trip
+    fields = ['source', 'destination', 'vehicle', 'driver', 'cargo_weight', 'revenue', 'scheduled_date', 'status']
+    template_name = 'core/trip_form.html'
+
+    def get_success_url(self):
+        return reverse_lazy('trip_detail', kwargs={'pk': self.object.pk})
+
+class TripDeleteView(LoginRequiredMixin, FleetManagerRequiredMixin, DeleteView):
+    model = Trip
+    template_name = 'core/trip_confirm_delete.html'
+    success_url = reverse_lazy('trip_list')
+
+
+# Dispatch State Machine Endpoints
+@login_required
+def trip_dispatch_view(request, pk):
+    trip = get_object_or_404(Trip, pk=pk)
+    
+    if not (request.user.is_superuser or request.user.groups.filter(name='Fleet Manager').exists()):
+        raise PermissionDenied("Only Fleet Managers can dispatch trips.")
+        
+    try:
+        with transaction.atomic():
+            # Apply row-level locks
+            trip = Trip.objects.select_for_update().get(pk=pk)
+            vehicle = Vehicle.objects.select_for_update().get(pk=trip.vehicle.pk)
+            driver = Driver.objects.select_for_update().get(pk=trip.driver.pk)
+            
+            if trip.status != 'Draft':
+                raise ValidationError("Only draft trips can be dispatched.")
+                
+            trip.status = 'Ongoing'
+            # Trigger model clean checks (license validity, statuses, capacity)
+            trip.full_clean()
+            trip.save()
+            
+            # Transition vehicle and driver
+            vehicle.status = 'On Trip'
+            vehicle.save(update_fields=['status'])
+            
+            driver.status = 'On Trip'
+            driver.save(update_fields=['status'])
+            
+            # Audit log
+            from django.contrib.contenttypes.models import ContentType
+            trip_ct = ContentType.objects.get_for_model(Trip)
+            AuditLog.objects.create(
+                user=request.user,
+                content_type=trip_ct,
+                object_id=trip.id,
+                action='Dispatch',
+                old_status='Draft',
+                new_status='Ongoing',
+                details=f"Trip dispatched. Vehicle: {vehicle.registration_number}, Driver: {driver.name}"
+            )
+            messages.success(request, f"Trip {trip.id} dispatched successfully!")
+    except ValidationError as e:
+        # Extract direct error message
+        err_msg = e.message_dict if hasattr(e, 'message_dict') else str(e)
+        messages.error(request, f"Dispatch failed: {err_msg}")
+    except Exception as e:
+        messages.error(request, f"Dispatch failed: {str(e)}")
+        
+    return redirect('trip_detail', pk=pk)
+
+@login_required
+def trip_complete_view(request, pk):
+    trip = get_object_or_404(Trip, pk=pk)
+    
+    is_manager = request.user.is_superuser or request.user.groups.filter(name='Fleet Manager').exists()
+    is_driver = hasattr(request.user, 'driver_profile') and request.user.driver_profile == trip.driver
+    
+    if not (is_manager or is_driver):
+        raise PermissionDenied("You do not have permission to complete this trip.")
+        
+    try:
+        with transaction.atomic():
+            trip = Trip.objects.select_for_update().get(pk=pk)
+            vehicle = Vehicle.objects.select_for_update().get(pk=trip.vehicle.pk)
+            driver = Driver.objects.select_for_update().get(pk=trip.driver.pk)
+            
+            if trip.status != 'Ongoing':
+                raise ValidationError("Only ongoing trips can be completed.")
+                
+            trip.status = 'Completed'
+            trip.end_time = timezone.now()
+            trip.save(update_fields=['status', 'end_time'])
+            
+            # Revert states to Available
+            vehicle.status = 'Available'
+            vehicle.save(update_fields=['status'])
+            
+            driver.status = 'Available'
+            driver.save(update_fields=['status'])
+            
+            # Audit log
+            from django.contrib.contenttypes.models import ContentType
+            trip_ct = ContentType.objects.get_for_model(Trip)
+            AuditLog.objects.create(
+                user=request.user,
+                content_type=trip_ct,
+                object_id=trip.id,
+                action='Complete',
+                old_status='Ongoing',
+                new_status='Completed',
+                details=f"Trip completed."
+            )
+            messages.success(request, f"Trip {trip.id} completed successfully!")
+    except Exception as e:
+        messages.error(request, f"Completion failed: {str(e)}")
+        
+    return redirect('trip_detail', pk=pk)
+
+@login_required
+def trip_cancel_view(request, pk):
+    trip = get_object_or_404(Trip, pk=pk)
+    
+    if not (request.user.is_superuser or request.user.groups.filter(name='Fleet Manager').exists()):
+        raise PermissionDenied("Only Fleet Managers can cancel trips.")
+        
+    try:
+        with transaction.atomic():
+            trip = Trip.objects.select_for_update().get(pk=pk)
+            vehicle = Vehicle.objects.select_for_update().get(pk=trip.vehicle.pk)
+            driver = Driver.objects.select_for_update().get(pk=trip.driver.pk)
+            
+            if trip.status not in ['Draft', 'Ongoing']:
+                raise ValidationError("Only draft or ongoing trips can be cancelled.")
+                
+            old_status = trip.status
+            trip.status = 'Cancelled'
+            trip.save(update_fields=['status'])
+            
+            # Revert states to Available
+            vehicle.status = 'Available'
+            vehicle.save(update_fields=['status'])
+            
+            driver.status = 'Available'
+            driver.save(update_fields=['status'])
+            
+            # Audit log
+            from django.contrib.contenttypes.models import ContentType
+            trip_ct = ContentType.objects.get_for_model(Trip)
+            AuditLog.objects.create(
+                user=request.user,
+                content_type=trip_ct,
+                object_id=trip.id,
+                action='Cancel',
+                old_status=old_status,
+                new_status='Cancelled',
+                details=f"Trip cancelled."
+            )
+            messages.success(request, f"Trip {trip.id} has been cancelled.")
+    except Exception as e:
+        messages.error(request, f"Cancellation failed: {str(e)}")
+        
+    return redirect('trip_detail', pk=pk)
+
+
+# Maintenance Views
+class MaintenanceLogListView(LoginRequiredMixin, StaffOnlyRequiredMixin, ListView):
+    model = MaintenanceLog
+    template_name = 'core/maintenance_list.html'
+    context_object_name = 'maintenance_logs'
+
+class MaintenanceLogCreateView(LoginRequiredMixin, SafetyOfficerRequiredMixin, CreateView):
+    model = MaintenanceLog
+    fields = ['vehicle', 'description', 'cost', 'start_date', 'end_date', 'status']
+    template_name = 'core/maintenance_form.html'
+    success_url = reverse_lazy('maintenance_list')
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        from django.contrib.contenttypes.models import ContentType
+        ct = ContentType.objects.get_for_model(self.object)
+        AuditLog.objects.create(
+            user=self.request.user,
+            content_type=ct,
+            object_id=self.object.id,
+            action='Created',
+            details=f"Maintenance log logged for {self.object.vehicle.registration_number}."
+        )
+        return response
+
+class MaintenanceLogUpdateView(LoginRequiredMixin, SafetyOfficerRequiredMixin, UpdateView):
+    model = MaintenanceLog
+    fields = ['vehicle', 'description', 'cost', 'start_date', 'end_date', 'status']
+    template_name = 'core/maintenance_form.html'
+    success_url = reverse_lazy('maintenance_list')

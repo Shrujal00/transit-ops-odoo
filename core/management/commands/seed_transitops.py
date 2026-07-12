@@ -127,11 +127,11 @@ class Command(BaseCommand):
         vehicles_data = [
             {'reg': 'TX-1002-A', 'make': 'Ford', 'model': 'F-350', 'year': 2021, 'cap': 3500, 'cost': 45000.00, 'status': 'Available'},
             {'reg': 'NY-5021-B', 'make': 'Mercedes-Benz', 'model': 'Sprinter', 'year': 2022, 'cap': 2500, 'cost': 55000.00, 'status': 'Available'},
-            {'reg': 'CA-9874-C', 'make': 'Volvo', 'model': 'FH16 Truck', 'year': 2019, 'cap': 15000, 'cost': 140000.00, 'status': 'On Trip'},
+            {'reg': 'CA-9874-C', 'make': 'Volvo', 'model': 'FH16 Truck', 'year': 2019, 'cap': 15000, 'cost': 140000.00, 'status': 'Available'},
             {'reg': 'FL-4402-D', 'make': 'Scania', 'model': 'R450', 'year': 2020, 'cap': 18000, 'cost': 165000.00, 'status': 'Available'},
             {'reg': 'IL-8912-E', 'make': 'Toyota', 'model': 'Hilux', 'year': 2021, 'cap': 1200, 'cost': 35000.00, 'status': 'Available'},
             {'reg': 'TX-9901-F', 'make': 'Isuzu', 'model': 'NPR', 'year': 2018, 'cap': 4500, 'cost': 48000.00, 'status': 'In Shop'},
-            {'reg': 'NV-2311-G', 'make': 'Freightliner', 'model': 'Cascadia', 'year': 2023, 'cap': 20000, 'cost': 180000.00, 'status': 'On Trip'},
+            {'reg': 'NV-2311-G', 'make': 'Freightliner', 'model': 'Cascadia', 'year': 2023, 'cap': 20000, 'cost': 180000.00, 'status': 'Available'},
             {'reg': 'AZ-7721-H', 'make': 'Mack', 'model': 'Anthem', 'year': 2021, 'cap': 19000, 'cost': 160000.00, 'status': 'Available'},
             {'reg': 'OR-5509-I', 'make': 'Chevrolet', 'model': 'Express', 'year': 2017, 'cap': 2200, 'cost': 28000.00, 'status': 'Retired'},
             {'reg': 'WA-1088-J', 'make': 'Volvo', 'model': 'VNL 860', 'year': 2022, 'cap': 16000, 'cost': 155000.00, 'status': 'Available'},
@@ -154,10 +154,10 @@ class Command(BaseCommand):
         drivers_data = [
             {'name': 'John Doe', 'email': 'john.doe@transitops.com', 'license': 'DL-887412-A', 'expiry_offset': 365, 'status': 'Available'},
             {'name': 'Jane Smith', 'email': 'jane.smith@transitops.com', 'license': 'DL-908124-B', 'expiry_offset': 730, 'status': 'Available'},
-            {'name': 'Carlos Ruiz', 'email': 'carlos.ruiz@transitops.com', 'license': 'DL-441029-C', 'expiry_offset': 400, 'status': 'On Trip'},
+            {'name': 'Carlos Ruiz', 'email': 'carlos.ruiz@transitops.com', 'license': 'DL-441029-C', 'expiry_offset': 400, 'status': 'Available'},
             {'name': 'David Miller', 'email': 'david.miller@transitops.com', 'license': 'DL-110948-D', 'expiry_offset': -30, 'status': 'Suspended'}, # Expired & Suspended
             {'name': 'Linda Brown', 'email': 'linda.brown@transitops.com', 'license': 'DL-552910-E', 'expiry_offset': 150, 'status': 'Available'},
-            {'name': 'James Wilson', 'email': 'james.wilson@transitops.com', 'license': 'DL-883719-F', 'expiry_offset': 600, 'status': 'On Trip'},
+            {'name': 'James Wilson', 'email': 'james.wilson@transitops.com', 'license': 'DL-883719-F', 'expiry_offset': 600, 'status': 'Available'},
             {'name': 'Patricia Taylor', 'email': 'patricia.taylor@transitops.com', 'license': 'DL-729108-G', 'expiry_offset': 120, 'status': 'Off Duty'},
             {'name': 'Michael Thomas', 'email': 'michael.thomas@transitops.com', 'license': 'DL-389104-H', 'expiry_offset': 900, 'status': 'Available'},
             {'name': 'Barbara Anderson', 'email': 'barbara.anderson@transitops.com', 'license': 'DL-289103-I', 'expiry_offset': 300, 'status': 'Available'},
@@ -198,7 +198,7 @@ class Command(BaseCommand):
         ]
 
         for t in trips_data:
-            Trip.objects.create(
+            trip = Trip.objects.create(
                 source=t['src'],
                 destination=t['dest'],
                 vehicle=t['vehicle'],
@@ -209,6 +209,11 @@ class Command(BaseCommand):
                 scheduled_date=t['sched'],
                 end_time=t.get('end')
             )
+            if trip.status == 'Ongoing':
+                trip.vehicle.status = 'On Trip'
+                trip.vehicle.save(update_fields=['status'])
+                trip.driver.status = 'On Trip'
+                trip.driver.save(update_fields=['status'])
 
         self.stdout.write('Creating sample Maintenance Logs...')
         # TX-9901-F (idx 5) is In Shop
