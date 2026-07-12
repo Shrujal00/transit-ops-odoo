@@ -57,11 +57,13 @@
                         </a>
                     </li>
                 {% endif %}
-                <li>
-                    <a href="#" style="opacity: 0.5; cursor: not-allowed;" onclick="event.preventDefault();">
-                        <i>💳</i> Finance & ROI
-                    </a>
-                </li>
+                {% if request.user.is_superuser or perms.core.view_expense %}
+                    <li class="{% if 'finance' in request.resolver_match.url_name %}active{% endif %}">
+                        <a href="{% url 'finance_report' %}">
+                            <i>💳</i> Finance & ROI
+                        </a>
+                    </li>
+                {% endif %}
             </ul>
         </nav>
         <div style="padding: 20px; font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--primary-light);">
