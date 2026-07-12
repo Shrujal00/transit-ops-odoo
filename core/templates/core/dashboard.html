@@ -14,7 +14,10 @@
             <a href="{% url 'vehicle_create' %}" class="btn btn-primary" style="margin-right: 8px;">+ New Vehicle</a>
         {% endif %}
         {% if perms.core.add_driver %}
-            <a href="{% url 'driver_create' %}" class="btn btn-secondary">+ Register Driver</a>
+            <a href="{% url 'driver_create' %}" class="btn btn-secondary" style="margin-right: 8px;">+ Register Driver</a>
+        {% endif %}
+        {% if perms.core.add_trip %}
+            <a href="{% url 'trip_create' %}" class="btn btn-primary">+ New Trip Schedule</a>
         {% endif %}
     </div>
 </div>

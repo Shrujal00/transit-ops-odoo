@@ -11,7 +11,7 @@
 {% block content %}
 <div class="page-header">
     <h1>Trips & Dispatch Registry</h1>
-    {% if not request.user.driver_profile %}
+    {% if perms.core.add_trip %}
         <a href="{% url 'trip_create' %}" class="btn btn-primary">+ Create Trip Schedule</a>
     {% endif %}
 </div>

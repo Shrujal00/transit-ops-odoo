@@ -14,7 +14,7 @@
 <!-- Odoo Status Bar & Action Buttons -->
 <div class="status-bar">
     <div style="display: flex; gap: 8px;">
-        {% if trip.status == 'Draft' and not request.user.driver_profile %}
+        {% if trip.status == 'Draft' and perms.core.change_trip %}
             <form action="{% url 'trip_dispatch' trip.pk %}" method="post">
                 {% csrf_token %}
                 <button type="submit" class="btn btn-primary">Dispatch Trip</button>
@@ -25,20 +25,22 @@
             </form>
             <a href="{% url 'trip_update' trip.pk %}" class="btn btn-secondary">Edit Schedule</a>
         {% elif trip.status == 'Ongoing' %}
-            <form action="{% url 'trip_complete' trip.pk %}" method="post" style="display: inline-flex; align-items: center; gap: 8px;">
-                {% csrf_token %}
-                <input type="number" name="end_odometer" placeholder="Final Odo" required style="width: 100px; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px;">
-                <input type="number" step="0.01" name="fuel_consumed" placeholder="Fuel (L)" required style="width: 90px; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px;">
-                <button type="submit" class="btn btn-primary" style="background-color: var(--success-color); border-color: var(--success-color);">Mark Completed</button>
-            </form>
-            {% if not request.user.driver_profile %}
+            {% if request.user.is_superuser or request.user.driver_profile == trip.driver %}
+                <form action="{% url 'trip_complete' trip.pk %}" method="post" style="display: inline-flex; align-items: center; gap: 8px;">
+                    {% csrf_token %}
+                    <input type="number" name="end_odometer" placeholder="Final Odo" required style="width: 100px; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px;">
+                    <input type="number" step="0.01" name="fuel_consumed" placeholder="Fuel (L)" required style="width: 90px; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px;">
+                    <button type="submit" class="btn btn-primary" style="background-color: var(--success-color); border-color: var(--success-color);">Mark Completed</button>
+                </form>
+            {% endif %}
+            {% if perms.core.change_trip %}
                 <form action="{% url 'trip_cancel' trip.pk %}" method="post">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-danger">Cancel Trip</button>
                 </form>
             {% endif %}
         {% endif %}
-        {% if not request.user.driver_profile %}
+        {% if perms.core.delete_trip %}
             <a href="{% url 'trip_delete' trip.pk %}" class="btn btn-danger" style="margin-left: 8px;">Delete</a>
         {% endif %}
     </div>
