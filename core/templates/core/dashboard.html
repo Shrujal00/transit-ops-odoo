@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard | TransitOps ERP{% endblock %}
+
+{% block breadcrumbs %}
+<span>Dashboard</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>TransitOps Dashboard</h1>
+    <div>
+        <a href="{% url 'vehicle_create' %}" class="btn btn-primary" style="margin-right: 8px;">+ New Vehicle</a>
+        <a href="{% url 'driver_create' %}" class="btn btn-secondary">+ Register Driver</a>
+    </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="dashboard-grid">
+    <div class="kpi-card">
+        <div class="card-title">Total Vehicles</div>
+        <div class="card-value">{{ total_vehicles }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="card-title">Vehicles Available</div>
+        <div class="card-value" style="color: var(--success-color);">{{ available_vehicles }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="card-title">Vehicles On Trip</div>
+        <div class="card-value" style="color: var(--info-color);">{{ on_trip_vehicles }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="card-title">Vehicles In Shop</div>
+        <div class="card-value" style="color: var(--warning-color);">{{ in_shop_vehicles }}</div>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <div class="kpi-card">
+        <div class="card-title">Total Drivers</div>
+        <div class="card-value">{{ total_drivers }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="card-title">Drivers Available</div>
+        <div class="card-value" style="color: var(--success-color);">{{ available_drivers }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="card-title">Drivers On Trip</div>
+        <div class="card-value" style="color: var(--info-color);">{{ on_trip_drivers }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="card-title">Active Trips</div>
+        <div class="card-value" style="color: var(--accent-color);">{{ active_trips }}</div>
+    </div>
+</div>
+
+<!-- Recent Audit Logs (Odoo Chatter Feed) -->
+<div class="chatter-box">
+    <h3>System Chatter Feed (Audit Log)</h3>
+    <div class="chatter-list">
+        {% for log in recent_logs %}
+            <div class="chatter-item">
+                <div class="chatter-meta">
+                    {{ log.user.get_full_name|default:log.user.email|default:"System" }}
+                    <span class="date">{{ log.timestamp|date:"Y-m-d H:i" }}</span>
+                </div>
+                <div class="chatter-content">
+                    <strong>{{ log.action }}</strong> on 
+                    <a href="
+                        {% if log.content_type.model == 'vehicle' %}
+                            {% url 'vehicle_detail' log.object_id %}
+                        {% elif log.content_type.model == 'driver' %}
+                            {% url 'driver_detail' log.object_id %}
+                        {% else %}
+                            #
+                        {% endif %}
+                    " style="text-decoration: none; color: var(--accent-color); font-weight: 600;">
+                        {{ log.content_object }}
+                    </a>
+                    {% if log.old_status or log.new_status %}
+                        from <span class="status-change">{{ log.old_status|default:"None" }}</span> to <span class="status-change">{{ log.new_status }}</span>
+                    {% endif %}
+                    <p style="margin-top: 4px; color: var(--text-muted);">{{ log.details }}</p>
+                </div>
+            </div>
+        {% empty %}
+            <div style="padding: 16px; text-align: center; color: var(--text-muted);">
+                No recent activity logs. Seed the system or make changes to generate audit trails.
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

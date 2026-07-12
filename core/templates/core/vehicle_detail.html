@@ -1,0 +1,252 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ vehicle.registration_number }} | TransitOps ERP{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{% url 'dashboard' %}">Dashboard</a>
+<span class="separator">/</span>
+<a href="{% url 'vehicle_list' %}">Vehicles</a>
+<span class="separator">/</span>
+<span>{{ vehicle.registration_number }}</span>
+{% endblock %}
+
+{% block content %}
+<!-- Odoo Status Bar -->
+<div class="status-bar">
+    <div class="status-steps">
+        <span class="status-step {% if vehicle.status == 'Available' %}active{% endif %}">Available</span>
+        <span class="status-step {% if vehicle.status == 'On Trip' %}active{% endif %}">On Trip</span>
+        <span class="status-step {% if vehicle.status == 'In Shop' %}active{% endif %}">In Shop</span>
+        <span class="status-step {% if vehicle.status == 'Retired' %}active{% endif %}">Retired</span>
+    </div>
+    <div>
+        <a href="{% url 'vehicle_update' vehicle.pk %}" class="btn btn-primary">Edit Vehicle</a>
+        <a href="{% url 'vehicle_delete' vehicle.pk %}" class="btn btn-danger" style="margin-left: 8px;">Delete</a>
+    </div>
+</div>
+
+<!-- Odoo Smart Buttons -->
+<div class="smart-button-grid">
+    <a href="#trips-section" class="smart-button">
+        <span class="button-val">{{ trips.count }}</span>
+        <span class="button-lbl">Trips</span>
+    </a>
+    <a href="#maintenance-section" class="smart-button">
+        <span class="button-val">{{ maintenance_logs.count }}</span>
+        <span class="button-lbl">Maintenance</span>
+    </a>
+    <a href="#fuel-section" class="smart-button">
+        <span class="button-val">{{ fuel_logs.count }}</span>
+        <span class="button-lbl">Fuel Logs</span>
+    </a>
+    <a href="#expenses-section" class="smart-button">
+        <span class="button-val">{{ expenses.count }}</span>
+        <span class="button-lbl">Expenses</span>
+    </a>
+</div>
+
+<!-- Vehicle General Registry Sheet (Odoo Form Style) -->
+<div class="detail-card">
+    <h2>Vehicle Registry Information</h2>
+    
+    <div class="form-grid">
+        <div class="form-group">
+            <label>Registration Number</label>
+            <div style="font-size: 16px; font-weight: 700; color: var(--primary-color);">
+                {{ vehicle.registration_number }}
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Status</label>
+            <div>
+                <span class="badge badge-{{ vehicle.status|lower|cut:' ' }}">
+                    {{ vehicle.status }}
+                </span>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Make & Model</label>
+            <div>{{ vehicle.make }} {{ vehicle.model }}</div>
+        </div>
+        <div class="form-group">
+            <label>Year of Manufacture</label>
+            <div>{{ vehicle.year }}</div>
+        </div>
+        <div class="form-group">
+            <label>Cargo Capacity (kg)</label>
+            <div>{{ vehicle.capacity_kg }} kg</div>
+        </div>
+        <div class="form-group">
+            <label>Acquisition Cost</label>
+            <div style="font-weight: 600;">${{ vehicle.acquisition_cost }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Related Sections -->
+<div id="trips-section" class="detail-card" style="margin-top: 32px;">
+    <h2>Trips History</h2>
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>Trip ID</th>
+                    <th>Source</th>
+                    <th>Destination</th>
+                    <th>Driver</th>
+                    <th>Cargo (kg)</th>
+                    <th>Scheduled Date</th>
+                    <th>Revenue</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for trip in trips %}
+                    <tr>
+                        <td>{{ trip.id }}</td>
+                        <td>{{ trip.source }}</td>
+                        <td>{{ trip.destination }}</td>
+                        <td>
+                            <a href="{% url 'driver_detail' trip.driver.pk %}" style="text-decoration: none; color: var(--accent-color); font-weight: 600;">
+                                {{ trip.driver.name }}
+                            </a>
+                        </td>
+                        <td>{{ trip.cargo_weight }} kg</td>
+                        <td>{{ trip.scheduled_date }}</td>
+                        <td>${{ trip.revenue }}</td>
+                        <td>
+                            <span class="badge badge-{% if trip.status == 'Ongoing' %}ontrip{% elif trip.status == 'Completed' %}available{% else %}suspended{% endif %}">
+                                {{ trip.status }}
+                            </span>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 16px;">No recorded trips.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="maintenance-section" class="detail-card">
+    <h2>Maintenance Logs</h2>
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Description</th>
+                    <th>Cost</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in maintenance_logs %}
+                    <tr>
+                        <td>{{ log.start_date }}</td>
+                        <td>{{ log.end_date|default:"Ongoing" }}</td>
+                        <td>{{ log.description }}</td>
+                        <td>${{ log.cost }}</td>
+                        <td>
+                            <span class="badge badge-{% if log.status == 'Completed' %}available{% elif log.status == 'In Progress' %}ontrip{% else %}inshop{% endif %}">
+                                {{ log.status }}
+                            </span>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 16px;">No maintenance records found.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="fuel-section" class="detail-card">
+    <h2>Fuel Logs</h2>
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Fuel (Liters)</th>
+                    <th>Fuel Cost</th>
+                    <th>Price per Liter</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in fuel_logs %}
+                    <tr>
+                        <td>{{ log.date }}</td>
+                        <td>{{ log.liters }} L</td>
+                        <td>${{ log.cost }}</td>
+                        <td>${{ log.cost|default:0|dictsort:"" }} (Calculated on the fly)</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 16px;">No fuel purchase logs.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="expenses-section" class="detail-card">
+    <h2>General Operational Expenses</h2>
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for exp in expenses %}
+                    <tr>
+                        <td>{{ exp.date }}</td>
+                        <td><span class="badge badge-retired">{{ exp.category }}</span></td>
+                        <td>{{ exp.description }}</td>
+                        <td>${{ exp.amount }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 16px;">No recorded expenses.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Odoo Chatter specific to Vehicle -->
+<div class="chatter-box">
+    <h3>Vehicle Chatter Log</h3>
+    <div class="chatter-list">
+        {% for log in audit_logs %}
+            <div class="chatter-item">
+                <div class="chatter-meta">
+                    {{ log.user.get_full_name|default:log.user.email|default:"System" }}
+                    <span class="date">{{ log.timestamp|date:"Y-m-d H:i" }}</span>
+                </div>
+                <div class="chatter-content">
+                    <strong>{{ log.action }}</strong>
+                    {% if log.old_status or log.new_status %}
+                        from <span class="status-change">{{ log.old_status|default:"None" }}</span> to <span class="status-change">{{ log.new_status }}</span>
+                    {% endif %}
+                    <p style="margin-top: 4px; color: var(--text-muted);">{{ log.details }}</p>
+                </div>
+            </div>
+        {% empty %}
+            <div style="padding: 16px; text-align: center; color: var(--text-muted);">No chatter logs for this vehicle.</div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

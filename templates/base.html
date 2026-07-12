@@ -1,0 +1,105 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}TransitOps ERP{% endblock %}</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+    <!-- Persistent Left Sidebar -->
+    <aside class="sidebar">
+        <div class="logo">
+            TransitOps <span>★</span>
+        </div>
+        <nav>
+            <ul>
+                <li class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                    <a href="{% url 'dashboard' %}">
+                        <i>📊</i> Dashboard
+                    </a>
+                </li>
+                <li class="{% if 'vehicle' in request.resolver_match.url_name %}active{% endif %}">
+                    <a href="{% url 'vehicle_list' %}">
+                        <i>🚚</i> Fleet Registry
+                    </a>
+                </li>
+                <li class="{% if 'driver' in request.resolver_match.url_name %}active{% endif %}">
+                    <a href="{% url 'driver_list' %}">
+                        <i>👤</i> Driver Registry
+                    </a>
+                </li>
+                <!-- Future stages placeholder -->
+                <li>
+                    <a href="#" style="opacity: 0.5; cursor: not-allowed;" onclick="event.preventDefault();">
+                        <i>🗺️</i> Trips & Dispatch
+                    </a>
+                </li>
+                <li>
+                    <a href="#" style="opacity: 0.5; cursor: not-allowed;" onclick="event.preventDefault();">
+                        <i>🔧</i> Maintenance
+                    </a>
+                </li>
+                <li>
+                    <a href="#" style="opacity: 0.5; cursor: not-allowed;" onclick="event.preventDefault();">
+                        <i>💳</i> Finance & ROI
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        <div style="padding: 20px; font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--primary-light);">
+            Logged in as:<br>
+            <strong style="color: white;">{{ request.user.email|default:"Guest (No Auth)" }}</strong>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+        <!-- Top bar with breadcrumbs -->
+        <header class="top-bar">
+            <div class="breadcrumbs">
+                {% block breadcrumbs %}
+                <a href="{% url 'dashboard' %}">Dashboard</a>
+                {% endblock %}
+            </div>
+            <div class="user-profile">
+                {% if request.user.is_authenticated %}
+                    <span class="role-badge">{{ request.user.role.name|default:"Superuser" }}</span>
+                    <span>{{ request.user.first_name }} {{ request.user.last_name }}</span>
+                {% else %}
+                    <span class="role-badge">Anonymous</span>
+                {% endif %}
+            </div>
+        </header>
+
+        <!-- Container for page specific content -->
+        <div class="container">
+            {% if messages %}
+                <div class="messages-container" style="margin-bottom: 20px;">
+                    {% for message in messages %}
+                        <div class="message {{ message.tags }}" style="padding: 12px 20px; border-radius: 6px; margin-bottom: 10px; background-color: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe;">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% block content %}{% endblock %}
+        </div>
+
+        <footer>
+            TransitOps ERP © 2026 — Centralized Fleet & Logistics Command Center
+        </footer>
+    </main>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

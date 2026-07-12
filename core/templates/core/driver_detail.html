@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ driver.name }} | TransitOps ERP{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{% url 'dashboard' %}">Dashboard</a>
+<span class="separator">/</span>
+<a href="{% url 'driver_list' %}">Drivers</a>
+<span class="separator">/</span>
+<span>{{ driver.name }}</span>
+{% endblock %}
+
+{% block content %}
+<!-- Odoo Status Bar -->
+<div class="status-bar">
+    <div class="status-steps">
+        <span class="status-step {% if driver.status == 'Available' %}active{% endif %}">Available</span>
+        <span class="status-step {% if driver.status == 'On Trip' %}active{% endif %}">On Trip</span>
+        <span class="status-step {% if driver.status == 'Off Duty' %}active{% endif %}">Off Duty</span>
+        <span class="status-step {% if driver.status == 'Suspended' %}active{% endif %}">Suspended</span>
+    </div>
+    <div>
+        <a href="{% url 'driver_update' driver.pk %}" class="btn btn-primary">Edit Driver</a>
+        <a href="{% url 'driver_delete' driver.pk %}" class="btn btn-danger" style="margin-left: 8px;">Delete</a>
+    </div>
+</div>
+
+<!-- Odoo Smart Buttons -->
+<div class="smart-button-grid">
+    <a href="#trips-section" class="smart-button">
+        <span class="button-val">{{ trips.count }}</span>
+        <span class="button-lbl">Trips</span>
+    </a>
+</div>
+
+<!-- Driver Profile Form Sheet (Odoo Form Style) -->
+<div class="detail-card">
+    <h2>Driver Profile Details</h2>
+    
+    <div class="form-grid">
+        <div class="form-group">
+            <label>Full Name</label>
+            <div style="font-size: 16px; font-weight: 700; color: var(--primary-color);">
+                {{ driver.name }}
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Status</label>
+            <div>
+                <span class="badge badge-{{ driver.status|lower|cut:' ' }}">
+                    {{ driver.status }}
+                </span>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>License Number</label>
+            <div style="font-weight: 600;">{{ driver.license_number }}</div>
+        </div>
+        <div class="form-group">
+            <label>License Expiry Date</label>
+            <div>
+                {{ driver.license_expiry }}
+                {% if driver.is_license_valid %}
+                    <span style="color: var(--success-color); font-weight: 600; margin-left: 8px;">✓ Valid</span>
+                {% else %}
+                    <span style="color: var(--danger-color); font-weight: 600; margin-left: 8px;">✗ Expired</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Associated System Account</label>
+            <div>{{ driver.user.email|default:"No system login linked" }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Related Trips Section -->
+<div id="trips-section" class="detail-card" style="margin-top: 32px;">
+    <h2>Trips Driven</h2>
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>Trip ID</th>
+                    <th>Source</th>
+                    <th>Destination</th>
+                    <th>Vehicle</th>
+                    <th>Cargo (kg)</th>
+                    <th>Scheduled Date</th>
+                    <th>Revenue</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for trip in trips %}
+                    <tr>
+                        <td>{{ trip.id }}</td>
+                        <td>{{ trip.source }}</td>
+                        <td>{{ trip.destination }}</td>
+                        <td>
+                            <a href="{% url 'vehicle_detail' trip.vehicle.pk %}" style="text-decoration: none; color: var(--accent-color); font-weight: 600;">
+                                {{ trip.vehicle.registration_number }}
+                            </a>
+                        </td>
+                        <td>{{ trip.cargo_weight }} kg</td>
+                        <td>{{ trip.scheduled_date }}</td>
+                        <td>${{ trip.revenue }}</td>
+                        <td>
+                            <span class="badge badge-{% if trip.status == 'Ongoing' %}ontrip{% elif trip.status == 'Completed' %}available{% else %}suspended{% endif %}">
+                                {{ trip.status }}
+                            </span>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 16px;">No recorded trips for this driver.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Odoo Chatter specific to Driver -->
+<div class="chatter-box">
+    <h3>Driver Chatter Log</h3>
+    <div class="chatter-list">
+        {% for log in audit_logs %}
+            <div class="chatter-item">
+                <div class="chatter-meta">
+                    {{ log.user.get_full_name|default:log.user.email|default:"System" }}
+                    <span class="date">{{ log.timestamp|date:"Y-m-d H:i" }}</span>
+                </div>
+                <div class="chatter-content">
+                    <strong>{{ log.action }}</strong>
+                    {% if log.old_status or log.new_status %}
+                        from <span class="status-change">{{ log.old_status|default:"None" }}</span> to <span class="status-change">{{ log.new_status }}</span>
+                    {% endif %}
+                    <p style="margin-top: 4px; color: var(--text-muted);">{{ log.details }}</p>
+                </div>
+            </div>
+        {% empty %}
+            <div style="padding: 16px; text-align: center; color: var(--text-muted);">No chatter logs for this driver.</div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

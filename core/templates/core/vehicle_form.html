@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {% if object %}Edit Vehicle: {{ object.registration_number }}{% else %}New Vehicle{% endif %} | TransitOps ERP
+{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{% url 'dashboard' %}">Dashboard</a>
+<span class="separator">/</span>
+<a href="{% url 'vehicle_list' %}">Vehicles</a>
+<span class="separator">/</span>
+<span>{% if object %}{{ object.registration_number }}{% else %}New{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{% if object %}Edit Vehicle Registry: {{ object.registration_number }}{% else %}New Vehicle Registration{% endif %}</h1>
+</div>
+
+<!-- Odoo-style Form Sheet -->
+<form method="post" class="detail-card">
+    {% csrf_data %}
+    {% csrf_token %}
+    <h2>Vehicle Specification Sheet</h2>
+
+    {% if form.errors %}
+        <div style="background-color: #fee2e2; border: 1px solid #fecaca; color: #991b1b; padding: 16px; border-radius: 6px; margin-bottom: 24px;">
+            <strong>Please correct the errors below:</strong>
+            <ul style="margin-top: 8px; margin-left: 20px;">
+                {% for field, errors in form.errors.items %}
+                    <li><strong>{{ field|capfirst }}:</strong> {{ errors|join:", " }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    <div class="form-grid">
+        <div class="form-group">
+            <label for="{{ form.registration_number.id_for_label }}">Registration Number (License Plate)</label>
+            <input type="text" name="registration_number" id="{{ form.registration_number.id_for_label }}" 
+                   value="{{ form.registration_number.value|default:'' }}" required placeholder="e.g. TX-1002-A">
+            <span style="font-size: 11px; color: var(--text-muted);">Will be normalized to uppercase automatically.</span>
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.status.id_for_label }}">Status</label>
+            <select name="status" id="{{ form.status.id_for_label }}">
+                {% for val, name in form.fields.status.choices %}
+                    <option value="{{ val }}" {% if form.status.value == val %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.make.id_for_label }}">Make</label>
+            <input type="text" name="make" id="{{ form.make.id_for_label }}" 
+                   value="{{ form.make.value|default:'' }}" required placeholder="e.g. Mercedes-Benz">
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.model.id_for_label }}">Model</label>
+            <input type="text" name="model" id="{{ form.model.id_for_label }}" 
+                   value="{{ form.model.value|default:'' }}" required placeholder="e.g. Sprinter">
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.year.id_for_label }}">Manufacture Year</label>
+            <input type="number" name="year" id="{{ form.year.id_for_label }}" 
+                   value="{{ form.year.value|default:'' }}" required placeholder="e.g. 2022">
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.capacity_kg.id_for_label }}">Cargo Capacity (kg)</label>
+            <input type="number" name="capacity_kg" id="{{ form.capacity_kg.id_for_label }}" 
+                   value="{{ form.capacity_kg.value|default:'' }}" required placeholder="e.g. 2500">
+        </div>
+
+        <div class="form-group">
+            <label for="{{ form.acquisition_cost.id_for_label }}">Acquisition Cost ($)</label>
+            <input type="number" step="0.01" name="acquisition_cost" id="{{ form.acquisition_cost.id_for_label }}" 
+                   value="{{ form.acquisition_cost.value|default:'' }}" required placeholder="e.g. 55000.00">
+        </div>
+    </div>
+
+    <div style="margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 20px; display: flex; gap: 12px;">
+        <button type="submit" class="btn btn-primary">Save Record</button>
+        <a href="{% if object %}{% url 'vehicle_detail' object.pk %}{% else %}{% url 'vehicle_list' %}{% endif %}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}

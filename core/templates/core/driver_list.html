@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}Driver Registry | TransitOps ERP{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{% url 'dashboard' %}">Dashboard</a>
+<span class="separator">/</span>
+<span>Drivers</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Driver Registry</h1>
+    <a href="{% url 'driver_create' %}" class="btn btn-primary">+ Register Driver</a>
+</div>
+
+<!-- Search & Filters Bar (Odoo Style) -->
+<div class="filters-bar">
+    <form method="get" action="" class="search-box">
+        <i>🔍</i>
+        <input type="text" name="q" placeholder="Search driver name, license..." value="{{ search_query }}">
+        {% if current_status %}
+            <input type="hidden" name="status" value="{{ current_status }}">
+        {% endif %}
+    </form>
+    
+    <div class="filter-chips">
+        <span style="align-self: center; font-weight: 600; color: var(--text-muted); margin-right: 8px;">Filter:</span>
+        <a href="?q={{ search_query }}" class="chip {% if not current_status %}active{% endif %}">All</a>
+        {% for code, label in status_choices %}
+            <a href="?q={{ search_query }}&status={{ code }}" class="chip {% if current_status == code %}active{% endif %}">{{ label }}</a>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Table Registry -->
+<div class="card-table">
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>Driver Name</th>
+                    <th>License Number</th>
+                    <th>License Expiry Date</th>
+                    <th>License Validity</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for driver in drivers %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'driver_detail' driver.pk %}" style="font-weight: 700; text-decoration: none; color: var(--accent-color);">
+                                {{ driver.name }}
+                            </a>
+                        </td>
+                        <td>{{ driver.license_number }}</td>
+                        <td>{{ driver.license_expiry }}</td>
+                        <td>
+                            {% if driver.is_license_valid %}
+                                <span style="color: var(--success-color); font-weight: 600;">✓ Valid</span>
+                            {% else %}
+                                <span style="color: var(--danger-color); font-weight: 600;">✗ Expired</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge badge-{{ driver.status|lower|cut:' ' }}">
+                                {{ driver.status }}
+                            </span>
+                        </td>
+                        <td style="text-align: right;">
+                            <a href="{% url 'driver_detail' driver.pk %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px; margin-right: 4px;">View</a>
+                            <a href="{% url 'driver_update' driver.pk %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Edit</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                            No drivers registered matching criteria.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

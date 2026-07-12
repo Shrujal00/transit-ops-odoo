@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete Vehicle | TransitOps ERP{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{% url 'dashboard' %}">Dashboard</a>
+<span class="separator">/</span>
+<a href="{% url 'vehicle_list' %}">Vehicles</a>
+<span class="separator">/</span>
+<a href="{% url 'vehicle_detail' object.pk %}">{{ object.registration_number }}</a>
+<span class="separator">/</span>
+<span>Delete</span>
+{% endblock %}
+
+{% block content %}
+<div class="detail-card" style="max-width: 600px; margin: 40px auto; border-top: 4px solid var(--danger-color);">
+    <h2 style="color: var(--danger-color); margin-bottom: 16px;">Delete Vehicle Record?</h2>
+    
+    <p style="font-size: 15px; margin-bottom: 24px; color: var(--text-color);">
+        Are you sure you want to permanently delete the vehicle <strong>{{ object.registration_number }}</strong> ({{ object.make }} {{ object.model }})? 
+        This action cannot be undone and will delete all associated logs (maintenance, fuel, and expenses).
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+        <div style="display: flex; gap: 12px;">
+            <button type="submit" class="btn btn-danger">Confirm Delete</button>
+            <a href="{% url 'vehicle_detail' object.pk %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
