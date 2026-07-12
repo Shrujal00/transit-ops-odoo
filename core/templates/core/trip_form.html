@@ -71,6 +71,12 @@
         </div>
 
         <div class="form-group">
+            <label for="{{ form.planned_distance.id_for_label }}">Planned Distance (km)</label>
+            <input type="number" name="planned_distance" id="{{ form.planned_distance.id_for_label }}" 
+                   value="{{ form.planned_distance.value|default:'' }}" required placeholder="e.g. 350">
+        </div>
+
+        <div class="form-group">
             <label for="{{ form.scheduled_date.id_for_label }}">Scheduled Date</label>
             <input type="date" name="scheduled_date" id="{{ form.scheduled_date.id_for_label }}" 
                    value="{% if form.scheduled_date.value %}{{ form.scheduled_date.value|date:'Y-m-d'|default:form.scheduled_date.value }}{% endif %}" required>
