@@ -48,11 +48,19 @@ class Vehicle(models.Model):
         ('In Shop', 'In Shop'),
         ('Retired', 'Retired'),
     ]
+    TYPE_CHOICES = [
+        ('Truck', 'Truck'),
+        ('Van', 'Van'),
+        ('Sedan', 'Sedan'),
+        ('Other', 'Other'),
+    ]
     registration_number = models.CharField(max_length=20, unique=True, db_index=True)
     make = models.CharField(max_length=50)
     model = models.CharField(max_length=50)
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='Truck')
     year = models.PositiveIntegerField()
     capacity_kg = models.PositiveIntegerField()
+    odometer = models.PositiveIntegerField(default=0)
     acquisition_cost = models.DecimalField(max_digits=12, decimal_places=2)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Available')
 
@@ -82,7 +90,10 @@ class Driver(models.Model):
     user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='driver_profile')
     name = models.CharField(max_length=100)
     license_number = models.CharField(max_length=50, unique=True)
+    license_category = models.CharField(max_length=50, default='Class A')
     license_expiry = models.DateField()
+    contact_number = models.CharField(max_length=20, blank=True, null=True)
+    safety_score = models.PositiveIntegerField(default=100)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Available')
 
     @property
@@ -112,10 +123,13 @@ class Trip(models.Model):
     vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, related_name='trips')
     driver = models.ForeignKey(Driver, on_delete=models.PROTECT, related_name='trips')
     cargo_weight = models.PositiveIntegerField()
+    planned_distance = models.PositiveIntegerField(default=0)
     scheduled_date = models.DateField()
     revenue = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Draft')
     end_time = models.DateTimeField(null=True, blank=True)
+    end_odometer = models.PositiveIntegerField(null=True, blank=True)
+    fuel_consumed = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
 
     def clean(self):
         super().clean()
@@ -123,9 +137,19 @@ class Trip(models.Model):
             raise ValidationError({'cargo_weight': 'Cargo weight must be greater than 0.'})
         if self.revenue is not None and self.revenue < 0:
             raise ValidationError({'revenue': 'Revenue cannot be negative.'})
+        if self.planned_distance is not None and self.planned_distance < 0:
+            raise ValidationError({'planned_distance': 'Planned distance cannot be negative.'})
             
         if self.vehicle and self.cargo_weight and self.cargo_weight > self.vehicle.capacity_kg:
             raise ValidationError({'cargo_weight': f"Cargo weight ({self.cargo_weight} kg) exceeds vehicle capacity ({self.vehicle.capacity_kg} kg)."})
+
+        if self.status == 'Completed':
+            if self.end_odometer is None:
+                raise ValidationError({'end_odometer': 'End odometer is required to complete a trip.'})
+            if self.fuel_consumed is None or self.fuel_consumed <= 0:
+                raise ValidationError({'fuel_consumed': 'Valid fuel consumed (liters) is required to complete a trip.'})
+            if self.vehicle and self.end_odometer < self.vehicle.odometer:
+                raise ValidationError({'end_odometer': f"End odometer ({self.end_odometer}) cannot be less than vehicle's current odometer ({self.vehicle.odometer})."})
             
         is_new = self.pk is None
         original_status = None

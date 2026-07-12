@@ -169,7 +169,10 @@ class DispatchStateMachineTest(TestCase):
         self.assertEqual(self.vehicle.status, 'On Trip')
         self.assertEqual(self.driver.status, 'On Trip')
 
-        response = self.client.post(reverse('trip_complete', kwargs={'pk': trip.pk}))
+        response = self.client.post(reverse('trip_complete', kwargs={'pk': trip.pk}), data={
+            'end_odometer': 500,
+            'fuel_consumed': '25.00'
+        })
         trip.refresh_from_db()
         self.vehicle.refresh_from_db()
         self.driver.refresh_from_db()
@@ -177,7 +180,30 @@ class DispatchStateMachineTest(TestCase):
         self.assertEqual(trip.status, 'Completed')
         self.assertEqual(self.vehicle.status, 'Available')
         self.assertEqual(self.driver.status, 'Available')
+        self.assertEqual(self.vehicle.odometer, 500)
         self.assertIsNotNone(trip.end_time)
+
+    def test_completion_odometer_validation(self):
+        trip = Trip.objects.create(
+            source="A", destination="B", vehicle=self.vehicle, driver=self.driver, cargo_weight=1000, scheduled_date=timezone.now().date()
+        )
+        self.client.post(reverse('trip_dispatch', kwargs={'pk': trip.pk}))
+        
+        response = self.client.post(reverse('trip_complete', kwargs={'pk': trip.pk}), data={
+            'end_odometer': -10,
+            'fuel_consumed': '15.00'
+        })
+        trip.refresh_from_db()
+        self.assertNotEqual(trip.status, 'Completed')
+        
+        response = self.client.post(reverse('trip_complete', kwargs={'pk': trip.pk}), data={
+            'end_odometer': 350,
+            'fuel_consumed': '20.00'
+        })
+        trip.refresh_from_db()
+        self.assertEqual(trip.status, 'Completed')
+        self.assertEqual(trip.end_odometer, 350)
+        self.assertEqual(float(trip.fuel_consumed), 20.00)
 
     def test_maintenance_flow_transitions(self):
         log = MaintenanceLog.objects.create(
@@ -268,7 +294,9 @@ class FinanceAnalyticsTest(TestCase):
 
         # Revenue
         self.trip = Trip.objects.create(
-            source="A", destination="B", vehicle=self.vehicle, driver=self.driver, cargo_weight=1000, revenue=1000.00, status="Completed", scheduled_date=timezone.now().date()
+            source="A", destination="B", vehicle=self.vehicle, driver=self.driver, cargo_weight=1000,
+            planned_distance=200, revenue=1000.00, status="Completed",
+            end_odometer=200, fuel_consumed=40.00, scheduled_date=timezone.now().date()
         )
         # Maintenance Cost
         self.maint = MaintenanceLog.objects.create(
@@ -303,9 +331,11 @@ class FinanceAnalyticsTest(TestCase):
         self.assertEqual(float(response.context['fleet_fuel']), 100.00)
         self.assertEqual(float(response.context['fleet_op_cost']), 300.00)
         self.assertAlmostEqual(float(response.context['fleet_roi']), (1000.00 - 300.00) / 40000.00)
+        self.assertEqual(float(response.context['fleet_fuel_efficiency']), 5.0)
 
         # Call JSON API endpoint
         api_response = self.client.get(reverse('finance_api_data'))
         self.assertEqual(api_response.status_code, 200)
         data = api_response.json()
         self.assertAlmostEqual(data['fleet_roi_percentage'], ((1000.00 - 300.00) / 40000.00) * 100.0)
+        self.assertEqual(float(data['fleet_fuel_efficiency']), 5.0)

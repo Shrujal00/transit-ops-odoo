@@ -69,6 +69,13 @@ def dashboard_view(request):
     on_trip_drivers = Driver.objects.filter(status='On Trip').count()
     
     active_trips = Trip.objects.filter(status='Ongoing').count()
+    pending_trips = Trip.objects.filter(status='Draft').count()
+    drivers_on_duty = Driver.objects.filter(status='On Trip').count()
+    
+    if total_vehicles > 0:
+        fleet_utilization = (on_trip_vehicles / total_vehicles) * 100
+    else:
+        fleet_utilization = 0.0
     
     # Audit logs for chatter (staff only)
     is_staff = request.user.is_superuser or request.user.groups.filter(name__in=['Fleet Manager', 'Safety Officer', 'Financial Analyst']).exists()
@@ -87,6 +94,9 @@ def dashboard_view(request):
         'available_drivers': available_drivers,
         'on_trip_drivers': on_trip_drivers,
         'active_trips': active_trips,
+        'pending_trips': pending_trips,
+        'drivers_on_duty': drivers_on_duty,
+        'fleet_utilization': fleet_utilization,
         'recent_logs': recent_logs,
         'is_staff': is_staff,
     }
@@ -145,7 +155,7 @@ class VehicleDetailView(LoginRequiredMixin, StaffOnlyRequiredMixin, DetailView):
 
 class VehicleCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateView):
     model = Vehicle
-    fields = ['registration_number', 'make', 'model', 'year', 'capacity_kg', 'acquisition_cost', 'status']
+    fields = ['registration_number', 'make', 'model', 'type', 'year', 'capacity_kg', 'odometer', 'acquisition_cost', 'status']
     template_name = 'core/vehicle_form.html'
     success_url = reverse_lazy('vehicle_list')
 
@@ -165,7 +175,7 @@ class VehicleCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateVie
 
 class VehicleUpdateView(LoginRequiredMixin, FleetManagerRequiredMixin, UpdateView):
     model = Vehicle
-    fields = ['registration_number', 'make', 'model', 'year', 'capacity_kg', 'acquisition_cost', 'status']
+    fields = ['registration_number', 'make', 'model', 'type', 'year', 'capacity_kg', 'odometer', 'acquisition_cost', 'status']
     template_name = 'core/vehicle_form.html'
 
     def get_success_url(self):
@@ -243,7 +253,7 @@ class DriverDetailView(LoginRequiredMixin, DriverSelfOrStaffRequiredMixin, Detai
 
 class DriverCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateView):
     model = Driver
-    fields = ['name', 'license_number', 'license_expiry', 'status', 'user']
+    fields = ['name', 'license_number', 'license_category', 'license_expiry', 'contact_number', 'safety_score', 'status', 'user']
     template_name = 'core/driver_form.html'
     success_url = reverse_lazy('driver_list')
 
@@ -263,7 +273,7 @@ class DriverCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateView
 
 class DriverUpdateView(LoginRequiredMixin, FleetManagerRequiredMixin, UpdateView):
     model = Driver
-    fields = ['name', 'license_number', 'license_expiry', 'status', 'user']
+    fields = ['name', 'license_number', 'license_category', 'license_expiry', 'contact_number', 'safety_score', 'status', 'user']
     template_name = 'core/driver_form.html'
 
     def get_success_url(self):
@@ -348,7 +358,7 @@ class TripDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
 
 class TripCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateView):
     model = Trip
-    fields = ['source', 'destination', 'vehicle', 'driver', 'cargo_weight', 'revenue', 'scheduled_date']
+    fields = ['source', 'destination', 'vehicle', 'driver', 'cargo_weight', 'planned_distance', 'revenue', 'scheduled_date']
     template_name = 'core/trip_form.html'
     success_url = reverse_lazy('trip_list')
 
@@ -368,7 +378,7 @@ class TripCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateView):
 
 class TripUpdateView(LoginRequiredMixin, FleetManagerRequiredMixin, UpdateView):
     model = Trip
-    fields = ['source', 'destination', 'vehicle', 'driver', 'cargo_weight', 'revenue', 'scheduled_date', 'status']
+    fields = ['source', 'destination', 'vehicle', 'driver', 'cargo_weight', 'planned_distance', 'revenue', 'scheduled_date', 'status']
     template_name = 'core/trip_form.html'
 
     def get_success_url(self):
@@ -450,12 +460,29 @@ def trip_complete_view(request, pk):
             if trip.status != 'Ongoing':
                 raise ValidationError("Only ongoing trips can be completed.")
                 
+            end_odo_str = request.POST.get('end_odometer')
+            fuel_str = request.POST.get('fuel_consumed')
+            
+            if not end_odo_str or not fuel_str:
+                raise ValidationError("Final odometer and fuel consumed are required to complete this trip.")
+                
+            try:
+                end_odo = int(end_odo_str)
+                fuel = Decimal(fuel_str)
+            except ValueError:
+                raise ValidationError("Odometer and fuel consumed must be valid numeric values.")
+                
             trip.status = 'Completed'
             trip.end_time = timezone.now()
-            trip.save(update_fields=['status', 'end_time'])
+            trip.end_odometer = end_odo
+            trip.fuel_consumed = fuel
+            trip.full_clean()
+            trip.save()
             
+            # Update vehicle status and odometer!
             vehicle.status = 'Available'
-            vehicle.save(update_fields=['status'])
+            vehicle.odometer = end_odo
+            vehicle.save(update_fields=['status', 'odometer'])
             
             driver.status = 'Available'
             driver.save(update_fields=['status'])
@@ -469,7 +496,7 @@ def trip_complete_view(request, pk):
                 action='Complete',
                 old_status='Ongoing',
                 new_status='Completed',
-                details=f"Trip completed."
+                details=f"Trip completed. Final Odometer: {end_odo}, Fuel Consumed: {fuel} L."
             )
             messages.success(request, f"Trip {trip.id} completed successfully!")
     except Http404 as e:
@@ -612,10 +639,17 @@ def _get_finance_data(start_date_str=None, end_date_str=None):
         maint_cost = maint_qs.aggregate(total=Sum('cost'))['total'] or Decimal('0.00')
         revenue = trip_qs.aggregate(total=Sum('revenue'))['total'] or Decimal('0.00')
         
+        # Odometer and Fuel Efficiency calculation
+        total_distance = trip_qs.aggregate(total=Sum('planned_distance'))['total'] or 0
+        total_fuel_consumed = trip_qs.aggregate(total=Sum('fuel_consumed'))['total'] or Decimal('0.00')
+        total_fuel_logged = fuel_qs.aggregate(total=Sum('liters'))['total'] or Decimal('0.00')
+        
         fuel_cost = Decimal(str(fuel_cost))
         maint_cost = Decimal(str(maint_cost))
         revenue = Decimal(str(revenue))
         acq_cost = Decimal(str(vehicle.acquisition_cost))
+        total_fuel_consumed = Decimal(str(total_fuel_consumed))
+        total_fuel_logged = Decimal(str(total_fuel_logged))
         
         op_cost = fuel_cost + maint_cost
         
@@ -623,6 +657,12 @@ def _get_finance_data(start_date_str=None, end_date_str=None):
             roi = (revenue - op_cost) / acq_cost
         else:
             roi = Decimal('0.00')
+            
+        efficiency_fuel = total_fuel_consumed if total_fuel_consumed > 0 else total_fuel_logged
+        if efficiency_fuel > 0:
+            fuel_efficiency = Decimal(str(total_distance)) / efficiency_fuel
+        else:
+            fuel_efficiency = Decimal('0.00')
             
         # Add to fleet-wide totals
         fleet_revenue += revenue
@@ -637,7 +677,9 @@ def _get_finance_data(start_date_str=None, end_date_str=None):
             'fuel': fuel_cost,
             'op_cost': op_cost,
             'roi': roi,
-            'roi_percentage': roi * 100
+            'roi_percentage': roi * 100,
+            'fuel_efficiency': fuel_efficiency,
+            'total_distance': total_distance
         })
         
     fleet_op_cost = fleet_maintenance + fleet_fuel
@@ -645,6 +687,21 @@ def _get_finance_data(start_date_str=None, end_date_str=None):
         fleet_roi = (fleet_revenue - fleet_op_cost) / fleet_acquisition
     else:
         fleet_roi = Decimal('0.00')
+        
+    # Fleet-wide fuel efficiency
+    fleet_total_distance = sum(item['total_distance'] for item in vehicles_data)
+    fleet_total_fuel_efficiency_base = sum(
+        (item['vehicle'].trips.filter(status='Completed').aggregate(total=Sum('fuel_consumed'))['total'] or Decimal('0.00'))
+        for item in vehicles_data
+    )
+    if fleet_total_fuel_efficiency_base == 0:
+        fleet_total_fuel_efficiency_base = FuelLog.objects.all().aggregate(total=Sum('liters'))['total'] or Decimal('0.00')
+        
+    fleet_total_fuel_efficiency_base = Decimal(str(fleet_total_fuel_efficiency_base))
+    if fleet_total_fuel_efficiency_base > 0:
+        fleet_fuel_efficiency = Decimal(str(fleet_total_distance)) / fleet_total_fuel_efficiency_base
+    else:
+        fleet_fuel_efficiency = Decimal('0.00')
         
     return {
         'vehicles': vehicles_data,
@@ -655,6 +712,7 @@ def _get_finance_data(start_date_str=None, end_date_str=None):
         'fleet_acquisition': fleet_acquisition,
         'fleet_roi': fleet_roi,
         'fleet_roi_percentage': fleet_roi * 100,
+        'fleet_fuel_efficiency': fleet_fuel_efficiency,
         'start_date': start_date_str or '',
         'end_date': end_date_str or ''
     }
@@ -693,7 +751,8 @@ def finance_api_view(request):
             'fuel': float(item['fuel']),
             'op_cost': float(item['op_cost']),
             'roi': float(item['roi']),
-            'roi_percentage': float(item['roi_percentage'])
+            'roi_percentage': float(item['roi_percentage']),
+            'fuel_efficiency': float(item['fuel_efficiency'])
         })
         
     response_data = {
@@ -704,6 +763,7 @@ def finance_api_view(request):
         'fleet_acquisition': float(data['fleet_acquisition']),
         'fleet_roi': float(data['fleet_roi']),
         'fleet_roi_percentage': float(data['fleet_roi_percentage']),
+        'fleet_fuel_efficiency': float(data['fleet_fuel_efficiency']),
         'vehicles': serialized_vehicles,
         'start_date': data['start_date'],
         'end_date': data['end_date']

@@ -77,6 +77,14 @@
             <div>{{ vehicle.year }}</div>
         </div>
         <div class="form-group">
+            <label>Vehicle Type</label>
+            <div>{{ vehicle.get_type_display|default:vehicle.type }}</div>
+        </div>
+        <div class="form-group">
+            <label>Current Odometer</label>
+            <div style="font-weight: 600; color: var(--accent-color);">{{ vehicle.odometer }} km</div>
+        </div>
+        <div class="form-group">
             <label>Cargo Capacity (kg)</label>
             <div>{{ vehicle.capacity_kg }} kg</div>
         </div>

@@ -43,7 +43,8 @@
                 <tr>
                     <th>Registration Number</th>
                     <th>Make & Model</th>
-                    <th>Year</th>
+                    <th>Type</th>
+                    <th>Odometer</th>
                     <th>Capacity (kg)</th>
                     <th>Acquisition Cost</th>
                     <th>Status</th>
@@ -59,7 +60,8 @@
                             </a>
                         </td>
                         <td>{{ vehicle.make }} {{ vehicle.model }}</td>
-                        <td>{{ vehicle.year }}</td>
+                        <td>{{ vehicle.get_type_display|default:vehicle.type }}</td>
+                        <td>{{ vehicle.odometer }} km</td>
                         <td>{{ vehicle.capacity_kg }} kg</td>
                         <td>${{ vehicle.acquisition_cost }}</td>
                         <td>
@@ -69,12 +71,14 @@
                         </td>
                         <td style="text-align: right;">
                             <a href="{% url 'vehicle_detail' vehicle.pk %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px; margin-right: 4px;">View</a>
-                            <a href="{% url 'vehicle_update' vehicle.pk %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Edit</a>
+                            {% if perms.core.change_vehicle %}
+                                <a href="{% url 'vehicle_update' vehicle.pk %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Edit</a>
+                            {% endif %}
                         </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="7" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                        <td colspan="8" style="text-align: center; padding: 30px; color: var(--text-muted);">
                             No vehicles found matching the criteria.
                         </td>
                     </tr>

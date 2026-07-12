@@ -25,8 +25,10 @@
             </form>
             <a href="{% url 'trip_update' trip.pk %}" class="btn btn-secondary">Edit Schedule</a>
         {% elif trip.status == 'Ongoing' %}
-            <form action="{% url 'trip_complete' trip.pk %}" method="post">
+            <form action="{% url 'trip_complete' trip.pk %}" method="post" style="display: inline-flex; align-items: center; gap: 8px;">
                 {% csrf_token %}
+                <input type="number" name="end_odometer" placeholder="Final Odo" required style="width: 100px; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px;">
+                <input type="number" step="0.01" name="fuel_consumed" placeholder="Fuel (L)" required style="width: 90px; padding: 6px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px;">
                 <button type="submit" class="btn btn-primary" style="background-color: var(--success-color); border-color: var(--success-color);">Mark Completed</button>
             </form>
             {% if not request.user.driver_profile %}
@@ -102,8 +104,20 @@
             <div>{{ trip.scheduled_date }}</div>
         </div>
         <div class="form-group">
+            <label>Planned Distance</label>
+            <div>{{ trip.planned_distance }} km</div>
+        </div>
+        <div class="form-group">
             <label>Trip Revenue ($)</label>
             <div style="font-weight: 600; color: var(--success-color);">${{ trip.revenue }}</div>
+        </div>
+        <div class="form-group">
+            <label>Final Odometer</label>
+            <div>{{ trip.end_odometer|default:"Not completed yet" }}</div>
+        </div>
+        <div class="form-group">
+            <label>Fuel Consumed</label>
+            <div>{{ trip.fuel_consumed|default:"Not completed yet" }} L</div>
         </div>
         <div class="form-group">
             <label>End Completion Time</label>

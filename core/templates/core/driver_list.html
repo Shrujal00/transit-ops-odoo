@@ -41,9 +41,11 @@
             <thead>
                 <tr>
                     <th>Driver Name</th>
+                    <th>Category</th>
                     <th>License Number</th>
-                    <th>License Expiry Date</th>
-                    <th>License Validity</th>
+                    <th>Contact Number</th>
+                    <th>Safety Score</th>
+                    <th>Expiry Date</th>
                     <th>Status</th>
                     <th style="text-align: right;">Actions</th>
                 </tr>
@@ -56,13 +58,18 @@
                                 {{ driver.name }}
                             </a>
                         </td>
+                        <td>{{ driver.license_category }}</td>
                         <td>{{ driver.license_number }}</td>
-                        <td>{{ driver.license_expiry }}</td>
+                        <td>{{ driver.contact_number|default:"-" }}</td>
                         <td>
-                            {% if driver.is_license_valid %}
-                                <span style="color: var(--success-color); font-weight: 600;">✓ Valid</span>
-                            {% else %}
-                                <span style="color: var(--danger-color); font-weight: 600;">✗ Expired</span>
+                            <span style="font-weight: 700; color: {% if driver.safety_score >= 85 %}var(--success-color){% elif driver.safety_score >= 70 %}var(--warning-color){% else %}var(--danger-color){% endif %};">
+                                {{ driver.safety_score }}
+                            </span>
+                        </td>
+                        <td>
+                            {{ driver.license_expiry }}
+                            {% if not driver.is_license_valid %}
+                                <span style="display: block; color: var(--danger-color); font-size: 10px; font-weight: 600;">✗ Expired</span>
                             {% endif %}
                         </td>
                         <td>
@@ -72,13 +79,15 @@
                         </td>
                         <td style="text-align: right;">
                             <a href="{% url 'driver_detail' driver.pk %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px; margin-right: 4px;">View</a>
-                            <a href="{% url 'driver_update' driver.pk %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Edit</a>
+                            {% if perms.core.change_driver %}
+                                <a href="{% url 'driver_update' driver.pk %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Edit</a>
+                            {% endif %}
                         </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="6" style="text-align: center; padding: 30px; color: var(--text-muted);">
-                            No drivers registered matching criteria.
+                        <td colspan="8" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                            No drivers found matching the criteria.
                         </td>
                     </tr>
                 {% endfor %}

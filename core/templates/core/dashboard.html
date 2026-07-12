@@ -30,31 +30,27 @@
         <div class="card-value" style="color: var(--success-color);">{{ available_vehicles }}</div>
     </div>
     <div class="kpi-card">
-        <div class="card-title">Vehicles On Trip</div>
-        <div class="card-value" style="color: var(--info-color);">{{ on_trip_vehicles }}</div>
-    </div>
-    <div class="kpi-card">
         <div class="card-title">Vehicles In Shop</div>
         <div class="card-value" style="color: var(--warning-color);">{{ in_shop_vehicles }}</div>
     </div>
+    <div class="kpi-card">
+        <div class="card-title">Fleet Utilization</div>
+        <div class="card-value" style="color: var(--info-color);">{{ fleet_utilization|floatformat:1 }}%</div>
+    </div>
 </div>
 
-<div class="dashboard-grid">
+<div class="dashboard-grid" style="margin-top: 20px;">
     <div class="kpi-card">
-        <div class="card-title">Total Drivers</div>
-        <div class="card-value">{{ total_drivers }}</div>
-    </div>
-    <div class="kpi-card">
-        <div class="card-title">Drivers Available</div>
-        <div class="card-value" style="color: var(--success-color);">{{ available_drivers }}</div>
-    </div>
-    <div class="kpi-card">
-        <div class="card-title">Drivers On Trip</div>
-        <div class="card-value" style="color: var(--info-color);">{{ on_trip_drivers }}</div>
+        <div class="card-title">Drivers On Duty</div>
+        <div class="card-value" style="color: var(--info-color);">{{ drivers_on_duty }}</div>
     </div>
     <div class="kpi-card">
         <div class="card-title">Active Trips</div>
         <div class="card-value" style="color: var(--accent-color);">{{ active_trips }}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="card-title">Pending Trips (Draft)</div>
+        <div class="card-value" style="color: var(--text-muted);">{{ pending_trips }}</div>
     </div>
 </div>
 

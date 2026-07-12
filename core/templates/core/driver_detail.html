@@ -72,6 +72,20 @@
             </div>
         </div>
         <div class="form-group">
+            <label>License Category</label>
+            <div>{{ driver.license_category }}</div>
+        </div>
+        <div class="form-group">
+            <label>Contact Number</label>
+            <div>{{ driver.contact_number|default:"None provided" }}</div>
+        </div>
+        <div class="form-group">
+            <label>Safety Score</label>
+            <div style="font-weight: 700; color: {% if driver.safety_score >= 85 %}var(--success-color){% elif driver.safety_score >= 70 %}var(--warning-color){% else %}var(--danger-color){% endif %};">
+                {{ driver.safety_score }} / 100
+            </div>
+        </div>
+        <div class="form-group">
             <label>Associated System Account</label>
             <div>{{ driver.user.email|default:"No system login linked" }}</div>
         </div>
