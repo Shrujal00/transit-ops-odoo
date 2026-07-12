@@ -296,6 +296,208 @@ class Command(BaseCommand):
             new_status='In Shop',
             details='Vehicle sent to shop due to transmission warnings.'
         )
+        # --- Bulk Operational Seeding (1000s of data) ---
+        import random
+        from django.contrib.auth.hashers import make_password
+
+        # Bulk Vehicles
+        bulk_vehicles = []
+        makes = ['Ford', 'Mercedes-Benz', 'Volvo', 'Scania', 'Toyota', 'Isuzu', 'Freightliner', 'Mack', 'Chevrolet']
+        models_map = {
+            'Ford': ['F-350', 'Transit', 'F-150'],
+            'Mercedes-Benz': ['Sprinter', 'Actros', 'Atego'],
+            'Volvo': ['FH16 Truck', 'VNL 860', 'FM'],
+            'Scania': ['R450', 'G-Series', 'P-Series'],
+            'Toyota': ['Hilux', 'HiAce', 'Land Cruiser'],
+            'Isuzu': ['NPR', 'FTS', 'FTR'],
+            'Freightliner': ['Cascadia', 'M2 106', 'Coronado'],
+            'Mack': ['Anthem', 'Granite', 'Pinnacle'],
+            'Chevrolet': ['Express', 'Silverado', 'Low Cab Forward']
+        }
+        types = ['Van', 'Truck', 'Trailer']
+        regions = ['North', 'South', 'East', 'West']
+        v_statuses = ['Available', 'On Trip', 'In Shop', 'Retired']
+
+        self.stdout.write('Generating 1000 bulk Vehicles...')
+        for i in range(1000):
+            make = random.choice(makes)
+            model = random.choice(models_map[make])
+            reg = f"{random.choice(['TX','NY','CA','FL','IL','NV','AZ','OR','WA'])}-{random.randint(1000, 9999)}-{random.choice(['A','B','C','D','E','F','G','H','I','J'])}"
+            bulk_vehicles.append(Vehicle(
+                registration_number=reg,
+                make=make,
+                model=model,
+                type=random.choice(types),
+                region=random.choice(regions),
+                year=random.randint(2015, 2024),
+                capacity_kg=random.randint(1000, 25000),
+                odometer=random.randint(5000, 250000),
+                acquisition_cost=random.randint(20000, 190000),
+                status=random.choice(v_statuses)
+            ))
+        Vehicle.objects.bulk_create(bulk_vehicles, ignore_conflicts=True)
+        vehicles_all = list(Vehicle.objects.all())
+
+        # Bulk Driver Users
+        hashed_password = make_password(password)
+        bulk_users = []
+        first_names = ['John', 'Jane', 'Carlos', 'David', 'Linda', 'James', 'Patricia', 'Michael', 'Barbara', 'Richard', 'Robert', 'Mary', 'William', 'Elizabeth', 'Joseph', 'Susan', 'Thomas', 'Jessica']
+        last_names = ['Doe', 'Smith', 'Ruiz', 'Miller', 'Brown', 'Wilson', 'Taylor', 'Thomas', 'Anderson', 'Jackson', 'White', 'Harris', 'Martin', 'Thompson', 'Garcia', 'Martinez', 'Robinson', 'Clark']
+        
+        self.stdout.write('Generating 1000 bulk Users...')
+        for i in range(1000):
+            fname = random.choice(first_names)
+            lname = random.choice(last_names)
+            email = f"driver_{i}_{random.randint(10000,99999)}@transitops.com"
+            bulk_users.append(User(
+                email=email,
+                password=hashed_password,
+                first_name=fname,
+                last_name=lname,
+                role=roles['driver']
+            ))
+        User.objects.bulk_create(bulk_users, ignore_conflicts=True)
+        drivers_users = list(User.objects.filter(role=roles['driver']))
+
+        # Bulk M2M User-Group Relationships
+        UserGroupThrough = User.groups.through
+        through_objs = []
+        driver_group_id = driver_group.id
+        for u in drivers_users:
+            through_objs.append(UserGroupThrough(user_id=u.id, group_id=driver_group_id))
+        UserGroupThrough.objects.bulk_create(through_objs, ignore_conflicts=True)
+
+        # Bulk Driver Profiles
+        bulk_drivers = []
+        driver_statuses = ['Available', 'On Trip', 'Off Duty', 'Suspended']
+        license_categories = ['Class A', 'Class B', 'Class C']
+        
+        self.stdout.write('Generating 1000 bulk Drivers...')
+        existing_emails = set(d['email'] for d in drivers_data)
+        for u in drivers_users:
+            if u.email in existing_emails:
+                continue
+            lic = f"DL-{random.randint(100000, 999999)}-{random.choice(['A','B','C','D'])}"
+            bulk_drivers.append(Driver(
+                user=u,
+                name=f"{u.first_name} {u.last_name}",
+                license_number=lic,
+                license_category=random.choice(license_categories),
+                license_expiry=today + datetime.timedelta(days=random.randint(-30, 1000)),
+                contact_number=f"555-{random.randint(1000, 9999)}",
+                safety_score=random.randint(60, 100),
+                status=random.choice(driver_statuses)
+            ))
+        Driver.objects.bulk_create(bulk_drivers, ignore_conflicts=True)
+        drivers_all = list(Driver.objects.all())
+
+        # Bulk Trips
+        bulk_trips = []
+        cities = ['New York, NY', 'Chicago, IL', 'Houston, TX', 'Phoenix, AZ', 'Philadelphia, PA', 'San Antonio, TX', 'San Diego, CA', 'Dallas, TX', 'San Jose, CA', 'Austin, TX', 'Jacksonville, FL', 'Fort Worth, TX', 'Columbus, OH', 'Charlotte, NC', 'San Francisco, CA', 'Indianapolis, IN', 'Seattle, WA', 'Denver, CO']
+        trip_statuses = ['Draft', 'Ongoing', 'Completed', 'Cancelled']
+        
+        self.stdout.write('Generating 1500 bulk Trips...')
+        for i in range(1500):
+            src = random.choice(cities)
+            dest = random.choice([c for c in cities if c != src])
+            veh = random.choice(vehicles_all)
+            drv = random.choice(drivers_all)
+            status = random.choice(trip_statuses)
+            sched = today + datetime.timedelta(days=random.randint(-60, 60))
+            
+            end_t = None
+            end_o = None
+            fuel = None
+            if status == 'Completed':
+                end_t = timezone.now() - datetime.timedelta(days=random.randint(1, 60))
+                end_o = veh.odometer + random.randint(100, 1000)
+                fuel = random.randint(10, 150)
+                
+            bulk_trips.append(Trip(
+                source=src,
+                destination=dest,
+                vehicle=veh,
+                driver=drv,
+                cargo_weight=random.randint(500, max(2000, veh.capacity_kg)),
+                planned_distance=random.randint(50, 1500),
+                revenue=random.randint(200, 5000),
+                status=status,
+                scheduled_date=sched,
+                end_time=end_t,
+                end_odometer=end_o,
+                fuel_consumed=fuel
+            ))
+        Trip.objects.bulk_create(bulk_trips)
+
+        # Bulk Maintenance Logs
+        bulk_maintenance = []
+        maintenance_statuses = ['Scheduled', 'In Progress', 'Completed']
+        maintenance_descs = [
+            'Routine engine oil change and filter replacement',
+            'Brake pads and rotor replacement with multi-point check',
+            'Radiator coolant flush and transmission fluid check',
+            'Tire rotation, balancing, and alignment adjustments',
+            'Electrical troubleshooting and alternator replacement',
+            'Suspension shock absorber and strut replacement',
+            'Windshield wiper replacement and fluid top-up',
+            'Air filter and cabin filter replacement service'
+        ]
+        
+        self.stdout.write('Generating 1200 bulk Maintenance Logs...')
+        for i in range(1200):
+            veh = random.choice(vehicles_all)
+            start = today + datetime.timedelta(days=random.randint(-120, 10))
+            status = random.choice(maintenance_statuses)
+            end = None
+            if status == 'Completed':
+                end = start + datetime.timedelta(days=random.randint(1, 5))
+                
+            bulk_maintenance.append(MaintenanceLog(
+                vehicle=veh,
+                description=random.choice(maintenance_descs),
+                cost=random.randint(50, 3000),
+                start_date=start,
+                end_date=end,
+                status=status
+            ))
+        MaintenanceLog.objects.bulk_create(bulk_maintenance)
+
+        # Bulk Fuel Logs
+        bulk_fuel = []
+        self.stdout.write('Generating 2000 bulk Fuel Logs...')
+        for i in range(2000):
+            veh = random.choice(vehicles_all)
+            bulk_fuel.append(FuelLog(
+                vehicle=veh,
+                liters=random.randint(20, 200),
+                cost=random.randint(30, 400),
+                date=today - datetime.timedelta(days=random.randint(1, 180))
+            ))
+        FuelLog.objects.bulk_create(bulk_fuel)
+        
+        # Bulk Expenses
+        bulk_expenses = []
+        categories = ['Tolls', 'Insurance', 'Permits', 'Equipment', 'Other']
+        expense_descs = {
+            'Tolls': 'Highway toll fee on delivery route',
+            'Insurance': 'Monthly insurance premium portion',
+            'Permits': 'State crossing permit fee',
+            'Equipment': 'Cabin maintenance tools and cleaning kit',
+            'Other': 'Miscellaneous operational expense'
+        }
+        
+        self.stdout.write('Generating 1500 bulk Expenses...')
+        for i in range(1500):
+            veh = random.choice(vehicles_all)
+            cat = random.choice(categories)
+            bulk_expenses.append(Expense(
+                vehicle=veh,
+                amount=random.randint(10, 1500),
+                category=cat,
+                description=expense_descs[cat],
+                date=today - datetime.timedelta(days=random.randint(1, 180))
+            ))
+        Expense.objects.bulk_create(bulk_expenses)
 
         self.stdout.write(self.style.SUCCESS('Successfully seeded TransitOps database with demo data!'))
         self.stdout.write('Manager Login: manager@transitops.com (password: password123)')

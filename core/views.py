@@ -154,6 +154,7 @@ class VehicleListView(LoginRequiredMixin, StaffOnlyRequiredMixin, ListView):
     model = Vehicle
     template_name = 'core/vehicle_list.html'
     context_object_name = 'vehicles'
+    paginate_by = 15
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -174,7 +175,7 @@ class VehicleListView(LoginRequiredMixin, StaffOnlyRequiredMixin, ListView):
                 Q(make__icontains=search_query) |
                 Q(model__icontains=search_query)
             )
-        return queryset
+        return queryset.order_by('registration_number')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -266,6 +267,7 @@ class DriverListView(LoginRequiredMixin, StaffOnlyRequiredMixin, ListView):
     model = Driver
     template_name = 'core/driver_list.html'
     context_object_name = 'drivers'
+    paginate_by = 15
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -279,7 +281,7 @@ class DriverListView(LoginRequiredMixin, StaffOnlyRequiredMixin, ListView):
                 Q(name__icontains=search_query) |
                 Q(license_number__icontains=search_query)
             )
-        return queryset
+        return queryset.order_by('name')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -364,6 +366,7 @@ class TripListView(LoginRequiredMixin, ListView):
     model = Trip
     template_name = 'core/trip_list.html'
     context_object_name = 'trips'
+    paginate_by = 15
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -378,7 +381,7 @@ class TripListView(LoginRequiredMixin, ListView):
         status_filter = self.request.GET.get('status')
         if status_filter:
             queryset = queryset.filter(status=status_filter)
-        return queryset
+        return queryset.order_by('-scheduled_date')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -622,6 +625,10 @@ class MaintenanceLogListView(LoginRequiredMixin, StaffOnlyRequiredMixin, ListVie
     model = MaintenanceLog
     template_name = 'core/maintenance_list.html'
     context_object_name = 'maintenance_logs'
+    paginate_by = 15
+
+    def get_queryset(self):
+        return super().get_queryset().order_by('-start_date')
 
 class MaintenanceLogCreateView(LoginRequiredMixin, FleetManagerRequiredMixin, CreateView):
     model = MaintenanceLog

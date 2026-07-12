@@ -65,4 +65,22 @@
         </table>
     </div>
 </div>
+
+{% if is_paginated %}
+<div class="pagination" style="display: flex; justify-content: center; gap: 8px; margin-top: 24px; align-items: center; padding-bottom: 24px;">
+    {% if page_obj.has_previous %}
+        <a href="?page=1" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;">&laquo; First</a>
+        <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;">Previous</a>
+    {% endif %}
+
+    <span style="font-size: 14px; font-weight: 600; color: var(--text-muted);">
+        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+    </span>
+
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;">Next</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;">Last &raquo;</a>
+    {% endif %}
+</div>
+{% endif %}
 {% endblock %}
