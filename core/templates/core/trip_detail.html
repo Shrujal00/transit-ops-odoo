@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+
+{% block title %}Trip Details | TransitOps ERP{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{% url 'dashboard' %}">Dashboard</a>
+<span class="separator">/</span>
+<a href="{% url 'trip_list' %}">Trips</a>
+<span class="separator">/</span>
+<span>Trip #{{ trip.id }}</span>
+{% endblock %}
+
+{% block content %}
+<!-- Odoo Status Bar & Action Buttons -->
+<div class="status-bar">
+    <div style="display: flex; gap: 8px;">
+        {% if trip.status == 'Draft' and not request.user.driver_profile %}
+            <form action="{% url 'trip_dispatch' trip.pk %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">Dispatch Trip</button>
+            </form>
+            <form action="{% url 'trip_cancel' trip.pk %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary">Cancel Trip</button>
+            </form>
+            <a href="{% url 'trip_update' trip.pk %}" class="btn btn-secondary">Edit Schedule</a>
+        {% elif trip.status == 'Ongoing' %}
+            <form action="{% url 'trip_complete' trip.pk %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary" style="background-color: var(--success-color); border-color: var(--success-color);">Mark Completed</button>
+            </form>
+            {% if not request.user.driver_profile %}
+                <form action="{% url 'trip_cancel' trip.pk %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">Cancel Trip</button>
+                </form>
+            {% endif %}
+        {% endif %}
+        {% if not request.user.driver_profile %}
+            <a href="{% url 'trip_delete' trip.pk %}" class="btn btn-danger" style="margin-left: 8px;">Delete</a>
+        {% endif %}
+    </div>
+    
+    <div class="status-steps">
+        <span class="status-step {% if trip.status == 'Draft' %}active{% endif %}">Draft</span>
+        <span class="status-step {% if trip.status == 'Ongoing' %}active{% endif %}">Ongoing</span>
+        <span class="status-step {% if trip.status == 'Completed' %}active{% endif %}">Completed</span>
+        <span class="status-step {% if trip.status == 'Cancelled' %}active{% endif %}">Cancelled</span>
+    </div>
+</div>
+
+<!-- Main Form Sheet (Odoo Style) -->
+<div class="detail-card">
+    <h2>Logistics Dispatch Specification Sheet</h2>
+    
+    <div class="form-grid">
+        <div class="form-group">
+            <label>Trip ID / Number</label>
+            <div style="font-size: 16px; font-weight: 700; color: var(--primary-color);">
+                #{{ trip.id }}
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Current Status</label>
+            <div>
+                <span class="badge badge-{% if trip.status == 'Ongoing' %}ontrip{% elif trip.status == 'Completed' %}available{% elif trip.status == 'Cancelled' %}suspended{% else %}retired{% endif %}">
+                    {{ trip.status }}
+                </span>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Source Location</label>
+            <div style="font-weight: 600;">{{ trip.source }}</div>
+        </div>
+        <div class="form-group">
+            <label>Destination Location</label>
+            <div style="font-weight: 600;">{{ trip.destination }}</div>
+        </div>
+        <div class="form-group">
+            <label>Assigned Vehicle</label>
+            <div>
+                <a href="{% url 'vehicle_detail' trip.vehicle.pk %}" style="text-decoration: none; color: var(--accent-color); font-weight: 700;">
+                    {{ trip.vehicle.registration_number }}
+                </a>
+                <span style="color: var(--text-muted); font-size: 12px; margin-left: 8px;">({{ trip.vehicle.make }} {{ trip.vehicle.model }})</span>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Assigned Driver</label>
+            <div>
+                <a href="{% url 'driver_detail' trip.driver.pk %}" style="text-decoration: none; color: var(--accent-color); font-weight: 700;">
+                    {{ trip.driver.name }}
+                </a>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Cargo Weight (kg)</label>
+            <div>{{ trip.cargo_weight }} kg <span style="font-size: 11px; color: var(--text-muted);">/ Max vehicle limit: {{ trip.vehicle.capacity_kg }} kg</span></div>
+        </div>
+        <div class="form-group">
+            <label>Scheduled Start Date</label>
+            <div>{{ trip.scheduled_date }}</div>
+        </div>
+        <div class="form-group">
+            <label>Trip Revenue ($)</label>
+            <div style="font-weight: 600; color: var(--success-color);">${{ trip.revenue }}</div>
+        </div>
+        <div class="form-group">
+            <label>End Completion Time</label>
+            <div>{{ trip.end_time|default:"Not completed yet" }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Odoo Chatter specific to Trip -->
+<div class="chatter-box">
+    <h3>Trip Dispatch Chatter Log</h3>
+    <div class="chatter-list">
+        {% for log in audit_logs %}
+            <div class="chatter-item">
+                <div class="chatter-meta">
+                    {{ log.user.get_full_name|default:log.user.email|default:"System" }}
+                    <span class="date">{{ log.timestamp|date:"Y-m-d H:i" }}</span>
+                </div>
+                <div class="chatter-content">
+                    <strong>{{ log.action }}</strong>
+                    {% if log.old_status or log.new_status %}
+                        from <span class="status-change">{{ log.old_status|default:"None" }}</span> to <span class="status-change">{{ log.new_status }}</span>
+                    {% endif %}
+                    <p style="margin-top: 4px; color: var(--text-muted);">{{ log.details }}</p>
+                </div>
+            </div>
+        {% empty %}
+            <div style="padding: 16px; text-align: center; color: var(--text-muted);">No chatter logs for this trip.</div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

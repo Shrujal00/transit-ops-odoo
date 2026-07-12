@@ -45,17 +45,18 @@
                         </a>
                     {% endif %}
                 </li>
-                <!-- Future stages placeholder -->
-                <li>
-                    <a href="#" style="opacity: 0.5; cursor: not-allowed;" onclick="event.preventDefault();">
+                <li class="{% if 'trip' in request.resolver_match.url_name %}active{% endif %}">
+                    <a href="{% url 'trip_list' %}">
                         <i>🗺️</i> Trips & Dispatch
                     </a>
                 </li>
-                <li>
-                    <a href="#" style="opacity: 0.5; cursor: not-allowed;" onclick="event.preventDefault();">
-                        <i>🔧</i> Maintenance
-                    </a>
-                </li>
+                {% if request.user.is_superuser or not request.user.driver_profile %}
+                    <li class="{% if 'maintenance' in request.resolver_match.url_name %}active{% endif %}">
+                        <a href="{% url 'maintenance_list' %}">
+                            <i>🔧</i> Maintenance
+                        </a>
+                    </li>
+                {% endif %}
                 <li>
                     <a href="#" style="opacity: 0.5; cursor: not-allowed;" onclick="event.preventDefault();">
                         <i>💳</i> Finance & ROI

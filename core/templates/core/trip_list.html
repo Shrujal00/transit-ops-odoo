@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+
+{% block title %}Trips & Dispatch | TransitOps ERP{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{% url 'dashboard' %}">Dashboard</a>
+<span class="separator">/</span>
+<span>Trips & Dispatch</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Trips & Dispatch Registry</h1>
+    {% if not request.user.driver_profile %}
+        <a href="{% url 'trip_create' %}" class="btn btn-primary">+ Create Trip Schedule</a>
+    {% endif %}
+</div>
+
+<!-- Search & Filters Bar (Odoo Style) -->
+<div class="filters-bar">
+    <div class="filter-chips">
+        <span style="align-self: center; font-weight: 600; color: var(--text-muted); margin-right: 8px;">Filter:</span>
+        <a href="?" class="chip {% if not current_status %}active{% endif %}">All</a>
+        {% for code, label in status_choices %}
+            <a href="?status={{ code }}" class="chip {% if current_status == code %}active{% endif %}">{{ label }}</a>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Table Registry -->
+<div class="card-table">
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>Trip ID</th>
+                    <th>Route (Source ➔ Destination)</th>
+                    <th>Vehicle</th>
+                    <th>Driver</th>
+                    <th>Cargo Weight</th>
+                    <th>Scheduled Date</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for trip in trips %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'trip_detail' trip.pk %}" style="font-weight: 700; text-decoration: none; color: var(--accent-color);">
+                                #{{ trip.id }}
+                            </a>
+                        </td>
+                        <td>
+                            <strong style="color: var(--primary-color);">{{ trip.source }}</strong> 
+                            <span style="color: var(--text-muted);">➔</span> 
+                            <strong style="color: var(--primary-color);">{{ trip.destination }}</strong>
+                        </td>
+                        <td>
+                            <a href="{% url 'vehicle_detail' trip.vehicle.pk %}" style="text-decoration: none; color: var(--text-color);">
+                                {{ trip.vehicle.registration_number }}
+                            </a>
+                        </td>
+                        <td>
+                            <a href="{% url 'driver_detail' trip.driver.pk %}" style="text-decoration: none; color: var(--text-color);">
+                                {{ trip.driver.name }}
+                            </a>
+                        </td>
+                        <td>{{ trip.cargo_weight }} kg</td>
+                        <td>{{ trip.scheduled_date }}</td>
+                        <td>
+                            <span class="badge badge-{% if trip.status == 'Ongoing' %}ontrip{% elif trip.status == 'Completed' %}available{% elif trip.status == 'Cancelled' %}suspended{% else %}retired{% endif %}">
+                                {{ trip.status }}
+                            </span>
+                        </td>
+                        <td style="text-align: right;">
+                            <a href="{% url 'trip_detail' trip.pk %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">View Details</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="8" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                            No trips found matching criteria.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

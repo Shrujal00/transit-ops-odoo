@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block title %}Maintenance Logs | TransitOps ERP{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{% url 'dashboard' %}">Dashboard</a>
+<span class="separator">/</span>
+<span>Maintenance Logs</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Maintenance Tickets</h1>
+    <a href="{% url 'maintenance_create' %}" class="btn btn-primary">+ Log Maintenance</a>
+</div>
+
+<!-- Table Registry -->
+<div class="card-table">
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>Vehicle</th>
+                    <th>Description</th>
+                    <th>Cost</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in maintenance_logs %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'vehicle_detail' log.vehicle.pk %}" style="font-weight: 700; text-decoration: none; color: var(--accent-color);">
+                                {{ log.vehicle.registration_number }}
+                            </a>
+                        </td>
+                        <td>{{ log.description|truncatewords:10 }}</td>
+                        <td style="font-weight: 600;">${{ log.cost }}</td>
+                        <td>{{ log.start_date }}</td>
+                        <td>{{ log.end_date|default:"Ongoing" }}</td>
+                        <td>
+                            <span class="badge badge-{% if log.status == 'Completed' %}available{% elif log.status == 'In Progress' %}ontrip{% else %}inshop{% endif %}">
+                                {{ log.status }}
+                            </span>
+                        </td>
+                        <td style="text-align: right;">
+                            <a href="{% url 'maintenance_update' log.pk %}" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Edit Ticket</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                            No maintenance logs recorded.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

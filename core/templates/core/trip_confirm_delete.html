@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block title %}Delete Trip | TransitOps ERP{% endblock %}
+
+{% block breadcrumbs %}
+<a href="{% url 'dashboard' %}">Dashboard</a>
+<span class="separator">/</span>
+<a href="{% url 'trip_list' %}">Trips</a>
+<span class="separator">/</span>
+<a href="{% url 'trip_detail' object.pk %}">Trip #{{ object.id }}</a>
+<span class="separator">/</span>
+<span>Delete</span>
+{% endblock %}
+
+{% block content %}
+<div class="detail-card" style="max-width: 600px; margin: 40px auto; border-top: 4px solid var(--danger-color);">
+    <h2 style="color: var(--danger-color); margin-bottom: 16px;">Delete Trip Schedule?</h2>
+    
+    <p style="font-size: 15px; margin-bottom: 24px; color: var(--text-color);">
+        Are you sure you want to permanently delete the trip schedule for <strong>Trip #{{ object.id }}</strong> (Route: {{ object.source }} ➔ {{ object.destination }})? 
+        This action cannot be undone and will delete the associated dispatch logs.
+    </p>
+
+    <form method="post">
+        {% csrf_token %}
+        <div style="display: flex; gap: 12px;">
+            <button type="submit" class="btn btn-danger">Confirm Delete</button>
+            <a href="{% url 'trip_detail' object.pk %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
