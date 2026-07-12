@@ -27,15 +27,23 @@
                         <i>📊</i> Dashboard
                     </a>
                 </li>
-                <li class="{% if 'vehicle' in request.resolver_match.url_name %}active{% endif %}">
-                    <a href="{% url 'vehicle_list' %}">
-                        <i>🚚</i> Fleet Registry
-                    </a>
-                </li>
+                {% if request.user.is_superuser or not request.user.driver_profile %}
+                    <li class="{% if 'vehicle' in request.resolver_match.url_name %}active{% endif %}">
+                        <a href="{% url 'vehicle_list' %}">
+                            <i>🚚</i> Fleet Registry
+                        </a>
+                    </li>
+                {% endif %}
                 <li class="{% if 'driver' in request.resolver_match.url_name %}active{% endif %}">
-                    <a href="{% url 'driver_list' %}">
-                        <i>👤</i> Driver Registry
-                    </a>
+                    {% if request.user.driver_profile %}
+                        <a href="{% url 'driver_detail' request.user.driver_profile.pk %}">
+                            <i>👤</i> My Driver Profile
+                        </a>
+                    {% else %}
+                        <a href="{% url 'driver_list' %}">
+                            <i>👤</i> Driver Registry
+                        </a>
+                    {% endif %}
                 </li>
                 <!-- Future stages placeholder -->
                 <li>
@@ -57,8 +65,15 @@
         </nav>
         <div style="padding: 20px; font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--primary-light);">
             Logged in as:<br>
-            <strong style="color: white;">{{ request.user.email|default:"Guest (No Auth)" }}</strong>
+            <strong style="color: white; word-break: break-all;">{{ request.user.email|default:"Guest (No Auth)" }}</strong>
+            {% if request.user.is_authenticated %}
+                <form action="{% url 'logout' %}" method="post" style="margin-top: 10px;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-secondary" style="width: 100%; font-size: 11px; padding: 4px; border-color: var(--primary-light); background-color: var(--primary-light); color: white;">Log Out</button>
+                </form>
+            {% endif %}
         </div>
+
     </aside>
 
     <!-- Main Content Area -->
